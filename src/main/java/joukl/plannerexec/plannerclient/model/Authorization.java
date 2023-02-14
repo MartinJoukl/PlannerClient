@@ -15,7 +15,7 @@ import java.security.spec.X509EncodedKeySpec;
 import static joukl.plannerexec.plannerclient.model.KeyType.*;
 
 public class Authorization {
-    private static final String PATH_TO_KEYS = "storage/keys";
+    public static final String PATH_TO_KEYS = "storage/keys";
     private PublicKey serverPublicKey;
     private PublicKey clientPublicKey;
 
@@ -39,12 +39,12 @@ public class Authorization {
         saveKeyToStorage(CLIENT_PUBLIC);
         return true;
     }
-    public boolean loadClientKeyFromRoot() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+    public boolean loadServerKeyFromRoot() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
         try {
-            byte[] key = Files.readAllBytes(Paths.get(PATH_TO_KEYS + "/" + CLIENT_PUBLIC.getKeyName() + ".key"));
+            byte[] key = Files.readAllBytes(Paths.get(PATH_TO_KEYS + "/" + SERVER_PUBLIC.getKeyName() + ".key"));
             KeyFactory keyFactory = KeyFactory.getInstance("RSA"); //RSA
             X509EncodedKeySpec keySpec = new X509EncodedKeySpec(key);
-            clientPublicKey = keyFactory.generatePublic(keySpec);
+            serverPublicKey = keyFactory.generatePublic(keySpec);
         } catch (IOException ignored) {
             return false;
         }
@@ -100,10 +100,10 @@ public class Authorization {
         saveKeyToStorage(CLIENT_PUBLIC);
 
 
-        System.out.println("Private key format: " + clientPrivateKey.getFormat());
+       // System.out.println("Private key format: " + clientPrivateKey.getFormat());
 // prints "Private key format: PKCS#8" on my machine
 
-        System.out.println("Public key format: " + clientPublicKey.getFormat());
+       // System.out.println("Public key format: " + clientPublicKey.getFormat());
 // prints "Public key format: X.509" on my machine
         return true;
     }
