@@ -3,6 +3,8 @@ package joukl.plannerexec.plannerclient;
 import joukl.plannerexec.plannerclient.model.Client;
 import joukl.plannerexec.plannerclient.model.KeyType;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import java.io.IOException;
 import java.security.InvalidKeyException;
@@ -12,7 +14,7 @@ import java.util.Scanner;
 import static joukl.plannerexec.plannerclient.model.Authorization.PATH_TO_KEYS;
 
 public class Main {
-    public static void main(String[] args) throws NoSuchAlgorithmException, IOException, NoSuchPaddingException, InvalidKeyException {
+    public static void main(String[] args) throws NoSuchAlgorithmException, IOException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
         System.out.println("""
                 --------------------------------------------------------------------------------
                 --------------------------------Executor client---------------------------------

@@ -1,6 +1,7 @@
 package joukl.plannerexec.plannerclient.model;
 
 import javax.crypto.*;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -108,33 +109,51 @@ public class Client {
         this.schedulerAddress = schedulerAddress;
     }
 
-    public void startPooling() throws IOException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
+    public void startPooling() throws IOException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
         Client client = Client.getClient();
         socket = new Socket(this.schedulerAddress, 6660);
         //out = new PrintWriter(socket.getOutputStream(), true);
         // in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
+        KeyGenerator generator = KeyGenerator.getInstance("AES");
+        generator.init(128); // The AES key size in number of bits
+        SecretKey secKey = generator.generateKey();
 
-        Cipher cipherIn = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-        cipherIn.init(Cipher.DECRYPT_MODE, authorization.getClientPrivateKey());
+        Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+        cipher.init(Cipher.PUBLIC_KEY, authorization.getServerPublicKey());
+        byte[] encryptedKey = cipher.doFinal(secKey.getEncoded()/*Secret Key From Step 1*/);
 
-        CipherInputStream inputStream = new CipherInputStream(socket.getInputStream(), cipherIn);
+        Cipher aesCipher = Cipher.getInstance("AES");
+        aesCipher.init(Cipher.ENCRYPT_MODE, secKey);
+        CipherOutputStream AESoutStream = new CipherOutputStream(socket.getOutputStream(), aesCipher);
 
-        Cipher cipherOut = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-        cipherOut.init(Cipher.ENCRYPT_MODE, authorization.getServerPublicKey());
+        Cipher aesInputCipher = Cipher.getInstance("AES");
+        aesInputCipher.init(Cipher.DECRYPT_MODE, secKey);
+
+        CipherInputStream AESInStream = new CipherInputStream(socket.getInputStream(), aesInputCipher);
 
         //0x1C
-        NotClosingOutputStream notClosingOutputStream = new NotClosingOutputStream(socket.getOutputStream());
-        try (CipherOutputStream outStream = new CipherOutputStream(notClosingOutputStream, cipherOut)) {
-            outStream.write((String.format("NEW;%s;%s;", client.USER_AGENT, client.getAvailableResources())).getBytes(StandardCharsets.UTF_8));
-            outStream.flush();
-            outStream.close();
+        //NotClosingOutputStream notClosingOutputStream = new NotClosingOutputStream(socket.getOutputStream());
+        //CipherOutputStream outStream = new CipherOutputStream(socket.getOutputStream(), cipherOut);
+        try (DataOutputStream dOut = new DataOutputStream(socket.getOutputStream())) {
+            // Send key for symetric cryptography
+            dOut.write(encryptedKey);
+            dOut.flush();
+           // dOut.write('\n');
+            // dOut.close();
+            //  dOut.writeChar('\n');
 
-            if (inputStream.read() == 0x06) {
-                System.out.println("got ack!");
-            }
+            byte[] test = AESInStream.readAllBytes();
+            System.out.println(new String(test,StandardCharsets.UTF_8));
+
+            AESoutStream.write((String.format("NEW;%s;%s;", client.USER_AGENT, client.getAvailableResources())).getBytes(StandardCharsets.UTF_8));
+            AESoutStream.flush();
+            System.out.println("succ");
+            // socket.getInputStream().close();
 
 
+
+            /*
             StringBuilder sb = new StringBuilder();
             for (String q : queue) {
                 sb.append(q);
@@ -145,6 +164,8 @@ public class Client {
             String parsed = sb.toString();
             outStream.write(parsed.getBytes(StandardCharsets.UTF_8));
             outStream.flush();
+
+             */
         }
     }
 }
