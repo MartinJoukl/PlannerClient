@@ -163,6 +163,10 @@ public class Authorization {
         this.serverPublicKey = serverPublicKey;
     }
 
+    public PublicKey getServerPublicKey() {
+        return serverPublicKey;
+    }
+
     public PublicKey getClientPublicKey() {
         return clientPublicKey;
     }

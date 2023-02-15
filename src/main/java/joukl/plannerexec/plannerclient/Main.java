@@ -3,13 +3,16 @@ package joukl.plannerexec.plannerclient;
 import joukl.plannerexec.plannerclient.model.Client;
 import joukl.plannerexec.plannerclient.model.KeyType;
 
+import javax.crypto.NoSuchPaddingException;
+import java.io.IOException;
+import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Scanner;
 
 import static joukl.plannerexec.plannerclient.model.Authorization.PATH_TO_KEYS;
 
 public class Main {
-    public static void main(String[] args) throws NoSuchAlgorithmException {
+    public static void main(String[] args) throws NoSuchAlgorithmException, IOException, NoSuchPaddingException, InvalidKeyException {
         System.out.println("""
                 --------------------------------------------------------------------------------
                 --------------------------------Executor client---------------------------------
@@ -59,6 +62,10 @@ public class Main {
                     break;
                 case "rsp":
                 case "reloadServerPublic":
+                    success = client.loadClientKeys();
+                    if (success) {
+                        System.out.println("Keys reloaded sucesfully");
+                    }
                     break;
                 case "stip":
                 case "setSchedulerIp":
@@ -69,6 +76,7 @@ public class Main {
                     break;
                 case "cn":
                 case "connect":
+                    client.startPooling();
                     break;
                 case "exit":
                     System.exit(0);
