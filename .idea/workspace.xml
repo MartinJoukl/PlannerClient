@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="27f5d462-1f8e-4981-a12f-659b7c3b5c89" name="Changes" comment="Socket 2">
+    <list default="true" id="27f5d462-1f8e-4981-a12f-659b7c3b5c89" name="Changes" comment="manual cipher">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Client.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Client.java" afterDir="false" />
     </list>
@@ -97,7 +97,8 @@
       <workItem from="1676454704372" duration="537000" />
       <workItem from="1676455559530" duration="1984000" />
       <workItem from="1676459496261" duration="33676000" />
-      <workItem from="1676569343756" duration="12427000" />
+      <workItem from="1676569343756" duration="12832000" />
+      <workItem from="1676717887800" duration="9640000" />
     </task>
     <task id="LOCAL-00001" summary="Initial commit">
       <created>1676218598617</created>
@@ -120,7 +121,14 @@
       <option name="project" value="LOCAL" />
       <updated>1676499091380</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="manual cipher">
+      <created>1676586553217</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1676586553217</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -153,18 +161,8 @@
     <MESSAGE value="Initial commit" />
     <MESSAGE value="Socket" />
     <MESSAGE value="Socket 2" />
-    <option name="LAST_COMMIT_MESSAGE" value="Socket 2" />
-  </component>
-  <component name="XDebuggerManager">
-    <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" type="java-line">
-          <url>file://$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Client.java</url>
-          <line>170</line>
-          <option name="timeStamp" value="24" />
-        </line-breakpoint>
-      </breakpoints>
-    </breakpoint-manager>
+    <MESSAGE value="manual cipher" />
+    <option name="LAST_COMMIT_MESSAGE" value="manual cipher" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/PlannerClient$Main.ic" NAME="Main Coverage Results" MODIFIED="1676221192109" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="idea" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false">

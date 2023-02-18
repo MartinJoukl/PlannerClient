@@ -1,7 +1,6 @@
 package joukl.plannerexec.plannerclient.model;
 
 import javax.crypto.*;
-import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -20,15 +19,14 @@ public class Client {
     //TODO z configu?
     private String USER_AGENT = "WINDOWS";
 
-    private PrintWriter out;
-    private BufferedReader in;
     private long availableResources;
 
     private Socket socket;
 
     private String id;
 
-    private final char STOP_SYMBOL = (char) 1f;
+    private final char STOP_SYMBOL = 31;
+    private final char ARR_STOP_SYMBOL = 30;
 
 
     private static final Client CLIENT = new Client();
@@ -146,14 +144,22 @@ public class Client {
             // Send key for symetric cryptography
             out.write(encryptedKey);
 
-            for (int i = 0; i < 1000; i--) {
+            //TODO metoda, první setup
+            if(client.getId() == null) {
+                byte[] messageToSend = (String.format("NEW;%s;%s", client.USER_AGENT, client.getAvailableResources())).getBytes(StandardCharsets.UTF_8);
 
-                byte[] messageToSend = (String.format("NEW;%s;%s"+i, client.USER_AGENT, client.getAvailableResources())).getBytes(StandardCharsets.UTF_8);
+                sendEncryptedString(aesEncrypting, out, messageToSend);
+                sendEncryptedList(aesEncrypting, out, queue);
+                //read id
+                String id = readEncryptedString(aesDecrypting, in);
 
-                sendEncryptedMessage(aesEncrypting, out, messageToSend);
-                String message = readEncryptedString(aesDecrypting, in);
-                System.out.println(message);
+                client.setId(id);
             }
+
+
+
+            //String message = readEncryptedString(aesDecrypting, in);
+
             // end of symetric key exchange
             //declare fake closing output stream
 
@@ -173,23 +179,23 @@ public class Client {
     }
 
     private String readEncryptedString(Cipher aesDecrypting, InputStream in) throws IOException, IllegalBlockSizeException, BadPaddingException {
-        byte[] bytes = readBytesUntilStop(in);
+        byte[] bytes = readBytesUntilStop(in, STOP_SYMBOL);
         String message = decrypt(bytes, aesDecrypting);
         return message;
     }
 
-    private void sendEncryptedMessage(Cipher aesEncrypting, DataOutputStream out, byte[] messageToSend) throws IllegalBlockSizeException, BadPaddingException, IOException {
+    private void sendEncryptedString(Cipher aesEncrypting, DataOutputStream out, byte[] messageToSend) throws IllegalBlockSizeException, BadPaddingException, IOException {
         String encrypted = encrypt(messageToSend, aesEncrypting);
-        String withStop = encrypted+STOP_SYMBOL;
+        String withStop = encrypted + STOP_SYMBOL;
 
         out.write(withStop.getBytes(StandardCharsets.UTF_8));
         out.flush();
     }
 
-    private byte[] readBytesUntilStop(InputStream cipherInputStream) throws IOException {
+    private byte[] readBytesUntilStop(InputStream cipherInputStream, char stopSymbol) throws IOException {
         List<Byte> bytes = new ArrayList<>();
         int byteAsInt = cipherInputStream.read();
-        while (!(byteAsInt == -1 || (char) byteAsInt == STOP_SYMBOL)) {
+        while (!(byteAsInt == -1 || (char) byteAsInt == stopSymbol)) {
             bytes.add((byte) byteAsInt);
             byteAsInt = cipherInputStream.read();
         }
@@ -203,11 +209,46 @@ public class Client {
 
     public String decrypt(byte[] encrypted, Cipher cipher) throws IllegalBlockSizeException, BadPaddingException {
         byte[] plainText = cipher.doFinal(Base64.getDecoder().decode(encrypted));
-        return new String(plainText);
+        return new String(plainText, StandardCharsets.UTF_8);
     }
 
     public String encrypt(byte[] decrypted, Cipher cipher) throws IllegalBlockSizeException, BadPaddingException {
         byte[] cipherText = cipher.doFinal(decrypted);
         return Base64.getEncoder().encodeToString(cipherText);
+    }
+
+    public String encryptList(List<String> toEncrypt, Cipher cipher) throws IllegalBlockSizeException, BadPaddingException {
+        StringBuilder encodedArrWithDeli = new StringBuilder();
+        for (int i = 0; i < toEncrypt.size(); i++) {
+            //encode each item
+            String encodedItem = Base64.getEncoder().encodeToString(toEncrypt.get(i).getBytes(StandardCharsets.UTF_8));
+            encodedArrWithDeli.append(encodedItem).append(STOP_SYMBOL);
+        }
+
+        //encrypt whole array
+        String enryptedArr = encrypt(encodedArrWithDeli.toString().getBytes(StandardCharsets.UTF_8), cipher);
+        //add delimeter
+        enryptedArr += (ARR_STOP_SYMBOL);
+        return enryptedArr;
+    }
+
+    public void sendEncryptedList(Cipher cipher, DataOutputStream out, List<String> toEncrypt) throws IllegalBlockSizeException, BadPaddingException, IOException {
+        String encrypted = encryptList(toEncrypt, cipher);
+        out.write(encrypted.getBytes(StandardCharsets.UTF_8));
+        out.flush();
+    }
+
+    private List<String> readEncryptedList(Cipher aesDecrypting, InputStream in) throws IOException, IllegalBlockSizeException, BadPaddingException {
+        //read array bytes
+        byte[] arrBase64 = readBytesUntilStop(in, ARR_STOP_SYMBOL);
+
+        //decrypt message, so we have itemInBase64+stop_symbol
+        String arrMessage = decrypt(arrBase64, aesDecrypting);
+        //split items using deli
+        List<String> base64Items = List.of(arrMessage.split(String.valueOf(STOP_SYMBOL)));
+
+        return base64Items.stream()
+                .map((encodedItem) -> new String(Base64.getDecoder().decode(encodedItem), StandardCharsets.UTF_8))
+                .toList();
     }
 }
