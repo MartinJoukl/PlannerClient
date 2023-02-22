@@ -8,20 +8,33 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+
+import static java.io.File.separator;
 
 public class Client {
     private Authorization authorization = new Authorization();
+
+    //works with one thread scheduling only
+    private boolean connectMessageDisplayed = false;
+
+    public static final String PATH_TO_TASK_STORAGE = "storage" + separator + "tasks" + separator;
+
     private List<Task> tasks = new ArrayList<>();
     //TODO nasetování queue
-    private List<String> queue = Arrays.asList("test1", "test2", "testQ3");
+    private final List<String> queue = new ArrayList<>();
     //new LinkedList<>();
     private String schedulerAddress = "127.0.0.1";
     //TODO z configu?
     private String USER_AGENT = "WINDOWS";
 
-    private long availableResources;
-
-    private Socket socket;
+    //TODO z configu, pro test 11
+    private long initialAvailableResources = 11;
+    private long availableResources = initialAvailableResources;
 
     private String id;
 
@@ -50,6 +63,14 @@ public class Client {
             throw new RuntimeException(e);
         }
         return loaded;
+    }
+
+    public long getInitialAvailableResources() {
+        return initialAvailableResources;
+    }
+
+    public void setInitialAvailableResources(long initialAvailableResources) {
+        this.initialAvailableResources = initialAvailableResources;
     }
 
     public boolean loadServerPublicKey() {
@@ -106,76 +127,123 @@ public class Client {
         this.schedulerAddress = schedulerAddress;
     }
 
-    public void startPooling() throws IOException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
+    public void startPooling() throws IOException {
         Client client = Client.getClient();
-        socket = new Socket(this.schedulerAddress, 6660);
-        //out = new PrintWriter(socket.getOutputStream(), true);
-        // in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-        KeyGenerator generator = KeyGenerator.getInstance("AES");
-        generator.init(128); // The AES key size in number of bits
-        SecretKey secKey = generator.generateKey();
+        ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
+        executor.scheduleAtFixedRate(() -> {
+            Task recievedTask = null;
+            Socket socket = null;
+            try {
+                socket = new Socket(this.schedulerAddress, 6660);
+            } catch (IOException e) {
+                if (!connectMessageDisplayed) {
+                    System.out.println("Failed to connect (You will be informed when we establish connection.)");
+                    connectMessageDisplayed = true;
+                }
+                return;
+            }
+            //we got througth initial connection, reset error
+            if (connectMessageDisplayed) {
+                System.out.println("Connection successful");
 
-        Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-        cipher.init(Cipher.PUBLIC_KEY, authorization.getServerPublicKey());
-        byte[] encryptedKey = cipher.doFinal(secKey.getEncoded()/*Secret Key From Step 1*/);
-        //decrypting
-        Cipher aesDecrypting = Cipher.getInstance("AES");
-        aesDecrypting.init(Cipher.DECRYPT_MODE, secKey);
-        //encrypting
-        Cipher aesEncrypting = Cipher.getInstance("AES");
-        aesEncrypting.init(Cipher.ENCRYPT_MODE, secKey);
-
-
-        //fake wrapper for output stream - as cipher stream won't actually send when flushed.
-        //NotClosingOutputStream notClosingOutputStream = new NotClosingOutputStream(socket.getOutputStream());
-        //* CipherOutputStream AESoutStream = new CipherOutputStream(socket.getOutputStream(), aesEncrypting);
-
-        //* Cipher aesDecrypting = Cipher.getInstance("AES");
-        //* aesDecrypting.init(Cipher.DECRYPT_MODE, secKey);
-
-        //  CipherInputStream AESInputStream = new CipherInputStream(socket.getInputStream(), aesDecrypting);
-
-        //0x1C
-        //CipherOutputStream outStream = new CipherOutputStream(socket.getOutputStream(), cipherOut);
-        socket.setTcpNoDelay(true);
-        try (DataOutputStream out = new DataOutputStream(socket.getOutputStream())) {
-            InputStream in = socket.getInputStream();
-            // Send key for symetric cryptography
-            out.write(encryptedKey);
-
-            //TODO metoda, první setup
-            if(client.getId() == null) {
-                byte[] messageToSend = (String.format("NEW;%s;%s", client.USER_AGENT, client.getAvailableResources())).getBytes(StandardCharsets.UTF_8);
-
-                sendEncryptedString(aesEncrypting, out, messageToSend);
-                sendEncryptedList(aesEncrypting, out, queue);
-                //read id
-                String id = readEncryptedString(aesDecrypting, in);
-
-                client.setId(id);
+                connectMessageDisplayed = false;
             }
 
+            try {
+                KeyGenerator generator = KeyGenerator.getInstance("AES");
+                generator.init(128); // The AES key size in number of bits
+                SecretKey secKey = generator.generateKey();
 
+                Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+                cipher.init(Cipher.PUBLIC_KEY, authorization.getServerPublicKey());
+                byte[] encryptedKey = cipher.doFinal(secKey.getEncoded()/*Secret Key From Step 1*/);
+                //decrypting
+                Cipher aesDecrypting = Cipher.getInstance("AES");
+                aesDecrypting.init(Cipher.DECRYPT_MODE, secKey);
+                //encrypting
+                Cipher aesEncrypting = Cipher.getInstance("AES");
+                aesEncrypting.init(Cipher.ENCRYPT_MODE, secKey);
 
-            //String message = readEncryptedString(aesDecrypting, in);
+                socket.setTcpNoDelay(true);
+                try (DataOutputStream out = new DataOutputStream(socket.getOutputStream())) {
+                    InputStream in = socket.getInputStream();
+                    // Send key for symetric cryptography
+                    out.write(encryptedKey);
 
-            // end of symetric key exchange
-            //declare fake closing output stream
+                    if (client.getId() == null) {
+                        sendRequestToRegister(client, aesDecrypting, aesEncrypting, out, in);
+                    } else {
+                        introduceById(client, aesDecrypting, aesEncrypting, out, in);
+                    }
+                    //determine if we will get task
+                    String response = readEncryptedString(aesDecrypting, in);
+                    if (response.equals("NO_TASK")) {
+                        //we got no task, return to pooling
+                    } else {
+                        // we will get task - message it is id
+                        String id = response;
 
-            //send client info
-            //*  AESoutStream.write((String.format("NEW;%s;%s", client.USER_AGENT, client.getAvailableResources())).getBytes(StandardCharsets.UTF_8));
-            //* AESoutStream.flush();
+                        try (FileOutputStream fos = new FileOutputStream(PATH_TO_TASK_STORAGE + id + ".zip")) {
+                            int receivedChunkSize = Integer.parseInt(readEncryptedString(aesDecrypting, in));
+                            while (receivedChunkSize > 0) {
+                                //decrypt and write
+                                fos.write(aesDecrypting.doFinal(in.readNBytes(receivedChunkSize)));
+                                receivedChunkSize = Integer.parseInt(readEncryptedString(aesDecrypting, in));
+                            }
+                        }
+                        recievedTask = new Task(id, PATH_TO_TASK_STORAGE + id + ".zip");
+                    }
+                }
+                //if we have task, unzip it and
+                if (recievedTask != null) {
+                    Persistence.unzip(recievedTask);
+                }
+            } catch (Exception e) {
+                //Java is happy now :)
+                System.out.println("Something went wrong");
+                //add task as failed
+                if(recievedTask!= null) {
+                    recievedTask.setStatus(TaskStatus.FAILED);
+                }
+                try {
+                    throw e;
+                } catch (NoSuchAlgorithmException | IOException | BadPaddingException | IllegalBlockSizeException |
+                         InvalidKeyException | NoSuchPaddingException ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
 
-            //stop :)
+        }, 0, 100, TimeUnit.MILLISECONDS);
+    }
 
-            //   byte[] bytes = readBytesUntilStop(AESInputStream);
-            //   String message = new String(bytes, StandardCharsets.UTF_8);
-            //   System.out.println("response:"+message);
+    private void introduceById(Client client, Cipher aesDecrypting, Cipher aesEncrypting, DataOutputStream out, InputStream in) throws IllegalBlockSizeException, BadPaddingException, IOException {
+        byte[] messageToSend = (String.format("%s;%s;%s", client.getId(), client.getAvailableResources(), client.USER_AGENT)).getBytes(StandardCharsets.UTF_8);
 
-            //     AESoutStream.write("dalsi".getBytes(StandardCharsets.UTF_8));
-            //    AESoutStream.flush();
+        sendEncryptedString(aesEncrypting, out, messageToSend);
+        //await validation or get new id - also remove all tasks
+        String response = readEncryptedString(aesDecrypting, in);
+        //if not ACK, server was reset - clear tasks and set new id
+        if (!response.equals("ACK")) {
+            //send list of queues to finish new registration
+            client.sendEncryptedList(aesEncrypting, out, queue);
+
+            client.setId(response);
+            //TODO stop tasks
+            client.getTasks().clear();
+            client.setAvailableResources(client.getInitialAvailableResources());
         }
+    }
+
+    private void sendRequestToRegister(Client client, Cipher aesDecrypting, Cipher aesEncrypting, DataOutputStream out, InputStream in) throws IllegalBlockSizeException, BadPaddingException, IOException {
+        byte[] messageToSend = (String.format("NEW;%s;%s", client.USER_AGENT, client.getAvailableResources())).getBytes(StandardCharsets.UTF_8);
+
+        sendEncryptedString(aesEncrypting, out, messageToSend);
+        sendEncryptedList(aesEncrypting, out, queue);
+        //read id
+        String id = readEncryptedString(aesDecrypting, in);
+
+        client.setId(id);
     }
 
     private String readEncryptedString(Cipher aesDecrypting, InputStream in) throws IOException, IllegalBlockSizeException, BadPaddingException {
@@ -219,9 +287,9 @@ public class Client {
 
     public String encryptList(List<String> toEncrypt, Cipher cipher) throws IllegalBlockSizeException, BadPaddingException {
         StringBuilder encodedArrWithDeli = new StringBuilder();
-        for (int i = 0; i < toEncrypt.size(); i++) {
+        for (String item : toEncrypt) {
             //encode each item
-            String encodedItem = Base64.getEncoder().encodeToString(toEncrypt.get(i).getBytes(StandardCharsets.UTF_8));
+            String encodedItem = Base64.getEncoder().encodeToString(item.getBytes(StandardCharsets.UTF_8));
             encodedArrWithDeli.append(encodedItem).append(STOP_SYMBOL);
         }
 

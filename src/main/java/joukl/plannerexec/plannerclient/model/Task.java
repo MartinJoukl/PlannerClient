@@ -1,5 +1,6 @@
 package joukl.plannerexec.plannerclient.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
@@ -12,6 +13,11 @@ public class Task {
     private String pathToExecutable;
     private List<String> pathToResults;
     private List<String> parameters;
+
+    @JsonIgnore
+    private String pathToZip;
+    @JsonIgnore
+    private String pathToSource;
     private int from;
 
     private int to;
@@ -124,6 +130,27 @@ public class Task {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getPathToZip() {
+        return pathToZip;
+    }
+
+    public void setPathToZip(String pathToZip) {
+        this.pathToZip = pathToZip;
+    }
+
+    public String getPathToSource() {
+        return pathToSource;
+    }
+
+    public void setPathToSource(String pathToSource) {
+        this.pathToSource = pathToSource;
+    }
+
+    public Task(String id, String pathToZip){
+        this.id = id;
+        this.pathToZip = pathToZip;
     }
 
     //TODO odstranit, použít implicitní?

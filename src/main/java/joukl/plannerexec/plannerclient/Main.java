@@ -79,6 +79,13 @@ public class Main {
                 case "cn":
                 case "connect":
                     client.startPooling();
+                    boolean stopPooling = false;
+                    Scanner sc2 = new Scanner(System.in);
+                    while (!stopPooling) {
+                        System.out.println("Enter \"stop\" to stop pooling");
+                        String line = sc2.nextLine();
+                        stopPooling = line.equals("stop");
+                    }
                     break;
                 case "exit":
                     System.exit(0);
