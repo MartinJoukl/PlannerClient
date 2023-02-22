@@ -4,12 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="27f5d462-1f8e-4981-a12f-659b7c3b5c89" name="Changes" comment="Begin unzipping payload">
+    <list default="true" id="27f5d462-1f8e-4981-a12f-659b7c3b5c89" name="Changes" comment="add payload executing">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/Main.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Client.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Client.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Persistence.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Persistence.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Task.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Task.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/TaskStatus.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/TaskStatus.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -106,6 +105,8 @@
       <workItem from="1676717887800" duration="15921000" />
       <workItem from="1676815907611" duration="12326000" />
       <workItem from="1677057572371" duration="25396000" />
+      <workItem from="1677087105059" duration="110000" />
+      <workItem from="1677093391635" duration="5592000" />
     </task>
     <task id="LOCAL-00001" summary="Initial commit">
       <created>1676218598617</created>
@@ -149,7 +150,14 @@
       <option name="project" value="LOCAL" />
       <updated>1677069744285</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="add payload executing">
+      <created>1677087188417</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1677087188417</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -185,20 +193,26 @@
     <MESSAGE value="manual cipher" />
     <MESSAGE value="socket fix" />
     <MESSAGE value="Begin unzipping payload" />
-    <option name="LAST_COMMIT_MESSAGE" value="Begin unzipping payload" />
+    <MESSAGE value="add payload executing" />
+    <option name="LAST_COMMIT_MESSAGE" value="add payload executing" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" type="java-line">
           <url>file://$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Client.java</url>
-          <line>223</line>
+          <line>226</line>
           <option name="timeStamp" value="26" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="java-line">
           <url>file://$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Client.java</url>
-          <line>355</line>
+          <line>358</line>
           <option name="timeStamp" value="30" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Task.java</url>
+          <line>226</line>
+          <option name="timeStamp" value="31" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>

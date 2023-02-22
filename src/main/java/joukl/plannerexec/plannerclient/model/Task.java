@@ -5,8 +5,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.Charset;
+import java.nio.file.*;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -189,7 +193,7 @@ public class Task {
         this.status = TaskStatus.SCHEDULED;
     }
 
-    public int run() throws IOException, InterruptedException {
+    public int run() throws IOException, InterruptedException, URISyntaxException {
         //create results location - also with name of command
         File resDir = new File(PATH_TO_TASK_RESULTS_STORAGE + name + separator + id);
         resDir.mkdirs();
@@ -207,7 +211,23 @@ public class Task {
                 .redirectError(new File(resDir.getPath() + separator + "errorOutput.txt"))
                 .start();
         process.waitFor(timeoutInMillis, TimeUnit.MILLISECONDS);
-        System.out.println(new String(process.getErrorStream().readAllBytes(), Charset.defaultCharset()));
+
+        List<File> files = new LinkedList<>();
+        //try to get results - move them from task
+        for (String singlePath : pathToResults) {
+            try {
+                File resultFile = new File(PATH_TO_TASK_STORAGE.replace('\\', '/') + id + separator + "payload" + separator + singlePath);
+                files.add(resultFile);
+                //create path
+                Files.createDirectories(Paths.get(resDir.getAbsolutePath() + "/" + singlePath));
+                //move the file
+                Files.move(Paths.get(resultFile.getAbsolutePath()), Paths.get(resDir.getAbsolutePath() + "/" + singlePath), StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e) {
+                System.out.println("ERROR: Some results couldn't be obtained: task id: " + id + ", path to result: " + singlePath);
+                System.out.println(e.getMessage());
+            }
+        }
+
         return process.exitValue();
     }
 }

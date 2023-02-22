@@ -152,7 +152,7 @@ public class Client {
             socket = new Socket(this.schedulerAddress, 6660);
         } catch (IOException e) {
             if (!connectMessageDisplayed) {
-                System.out.println("Failed to connect (You will be informed when we establish connection.)");
+                System.out.println("Failed to connect... You will be informed when connection will be established...");
                 connectMessageDisplayed = true;
             }
             return;
@@ -160,7 +160,6 @@ public class Client {
         //we got througth initial connection, reset error
         if (connectMessageDisplayed) {
             System.out.println("Connection successful");
-
             connectMessageDisplayed = false;
         }
 
@@ -217,7 +216,11 @@ public class Client {
                 recievedTask.setPathToSource(Client.PATH_TO_TASK_STORAGE + recievedTask.getId());
                 recievedTask = Persistence.mergeTaskWithConfiguration(recievedTask, new File(recievedTask.getPathToSource() + separator + "taskConfig.json"));
                 int res = recievedTask.run();
-                System.out.println("Task ended with result: " + res);
+                if (res != 0) {
+                    //probably failed, but job completed if no error occurred - meaning results are available
+                    recievedTask.setStatus(TaskStatus.WARNING);
+                }
+                System.out.println("Task with id: " + recievedTask.getId() + " and name " + recievedTask.getName() + " ended with result: " + res);
             }
         } catch (Exception e) {
             if (recievedTask != null) {
