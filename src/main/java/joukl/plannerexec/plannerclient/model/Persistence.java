@@ -1,5 +1,8 @@
 package joukl.plannerexec.plannerclient.model;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -56,7 +59,7 @@ public class Persistence {
     //Unzips task to task folder
     public static void unzip(Task task) throws IOException {
         String fileZip = task.getPathToZip();
-        File destDir = new File(task.getPathToZip());
+        File destDir = new File(Client.PATH_TO_TASK_STORAGE);
 
         byte[] buffer = new byte[1024];
         ZipInputStream zis = new ZipInputStream(new FileInputStream(fileZip));
@@ -88,6 +91,7 @@ public class Persistence {
         zis.closeEntry();
         zis.close();
     }
+
     //https://www.baeldung.com/java-compress-and-uncompress
     private static File newFile(File destinationDir, ZipEntry zipEntry) throws IOException {
         File destFile = new File(destinationDir, zipEntry.getName());
@@ -100,6 +104,38 @@ public class Persistence {
         }
 
         return destFile;
+    }
+
+    /**
+     * @param task
+     * @param configFile
+     * @return Original task merged with task from configuration
+     * @throws IOException
+     */
+    public static Task mergeTaskWithConfiguration(Task task, File configFile) throws IOException {
+
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            Task fromConfig = mapper
+                    .readerFor(Task.class)
+                    .readValue(configFile);
+
+            task.setCost(fromConfig.getCost());
+            task.setName(fromConfig.getName());
+            task.setCommandToExecute(fromConfig.getCommandToExecute());
+            task.setPathToResults(fromConfig.getPathToResults());
+            task.setTimeoutInMillis(fromConfig.getTimeoutInMillis());
+            task.setParameters(fromConfig.getParameters());
+            task.setPriority(fromConfig.getPriority());
+            task.setExecutePath(fromConfig.getExecutePath());
+
+            task.setQueue(fromConfig.getQueue());
+
+            return task;
+
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
     }
 
 }

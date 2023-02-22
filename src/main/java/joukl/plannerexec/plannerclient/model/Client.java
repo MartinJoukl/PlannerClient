@@ -4,26 +4,27 @@ import javax.crypto.*;
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 import static java.io.File.separator;
 
 public class Client {
     private Authorization authorization = new Authorization();
 
+    ScheduledExecutorService executor;
+
     //works with one thread scheduling only
     private boolean connectMessageDisplayed = false;
 
     public static final String PATH_TO_TASK_STORAGE = "storage" + separator + "tasks" + separator;
+    public static final String PATH_TO_TASK_RESULTS_STORAGE = "storage" + separator + "results" + separator;
 
+    List<Thread> runningThreadsList = Collections.synchronizedList(new LinkedList<>());
     private List<Task> tasks = new ArrayList<>();
     //TODO nasetování queue
     private final List<String> queue = new ArrayList<>();
@@ -131,90 +132,102 @@ public class Client {
         Client client = Client.getClient();
 
         ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
+        //periodically create new pooling threads
         executor.scheduleAtFixedRate(() -> {
-            Task recievedTask = null;
-            Socket socket = null;
-            try {
-                socket = new Socket(this.schedulerAddress, 6660);
-            } catch (IOException e) {
-                if (!connectMessageDisplayed) {
-                    System.out.println("Failed to connect (You will be informed when we establish connection.)");
-                    connectMessageDisplayed = true;
-                }
-                return;
-            }
-            //we got througth initial connection, reset error
-            if (connectMessageDisplayed) {
-                System.out.println("Connection successful");
+            Thread thread = new Thread(() -> {
+                poolForTaskAndExecuteIt(client);
+                runningThreadsList.remove(Thread.currentThread());
+            });
 
-                connectMessageDisplayed = false;
-            }
-
-            try {
-                KeyGenerator generator = KeyGenerator.getInstance("AES");
-                generator.init(128); // The AES key size in number of bits
-                SecretKey secKey = generator.generateKey();
-
-                Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-                cipher.init(Cipher.PUBLIC_KEY, authorization.getServerPublicKey());
-                byte[] encryptedKey = cipher.doFinal(secKey.getEncoded()/*Secret Key From Step 1*/);
-                //decrypting
-                Cipher aesDecrypting = Cipher.getInstance("AES");
-                aesDecrypting.init(Cipher.DECRYPT_MODE, secKey);
-                //encrypting
-                Cipher aesEncrypting = Cipher.getInstance("AES");
-                aesEncrypting.init(Cipher.ENCRYPT_MODE, secKey);
-
-                socket.setTcpNoDelay(true);
-                try (DataOutputStream out = new DataOutputStream(socket.getOutputStream())) {
-                    InputStream in = socket.getInputStream();
-                    // Send key for symetric cryptography
-                    out.write(encryptedKey);
-
-                    if (client.getId() == null) {
-                        sendRequestToRegister(client, aesDecrypting, aesEncrypting, out, in);
-                    } else {
-                        introduceById(client, aesDecrypting, aesEncrypting, out, in);
-                    }
-                    //determine if we will get task
-                    String response = readEncryptedString(aesDecrypting, in);
-                    if (response.equals("NO_TASK")) {
-                        //we got no task, return to pooling
-                    } else {
-                        // we will get task - message it is id
-                        String id = response;
-
-                        try (FileOutputStream fos = new FileOutputStream(PATH_TO_TASK_STORAGE + id + ".zip")) {
-                            int receivedChunkSize = Integer.parseInt(readEncryptedString(aesDecrypting, in));
-                            while (receivedChunkSize > 0) {
-                                //decrypt and write
-                                fos.write(aesDecrypting.doFinal(in.readNBytes(receivedChunkSize)));
-                                receivedChunkSize = Integer.parseInt(readEncryptedString(aesDecrypting, in));
-                            }
-                        }
-                        recievedTask = new Task(id, PATH_TO_TASK_STORAGE + id + ".zip");
-                    }
-                }
-                //if we have task, unzip it and
-                if (recievedTask != null) {
-                    Persistence.unzip(recievedTask);
-                }
-            } catch (Exception e) {
-                //Java is happy now :)
-                System.out.println("Something went wrong");
-                //add task as failed
-                if(recievedTask!= null) {
-                    recievedTask.setStatus(TaskStatus.FAILED);
-                }
-                try {
-                    throw e;
-                } catch (NoSuchAlgorithmException | IOException | BadPaddingException | IllegalBlockSizeException |
-                         InvalidKeyException | NoSuchPaddingException ex) {
-                    throw new RuntimeException(ex);
-                }
-            }
+            runningThreadsList.add(thread);
+            thread.start();
 
         }, 0, 100, TimeUnit.MILLISECONDS);
+    }
+
+    private void poolForTaskAndExecuteIt(Client client) {
+        Task recievedTask = null;
+        Socket socket = null;
+        try {
+            socket = new Socket(this.schedulerAddress, 6660);
+        } catch (IOException e) {
+            if (!connectMessageDisplayed) {
+                System.out.println("Failed to connect (You will be informed when we establish connection.)");
+                connectMessageDisplayed = true;
+            }
+            return;
+        }
+        //we got througth initial connection, reset error
+        if (connectMessageDisplayed) {
+            System.out.println("Connection successful");
+
+            connectMessageDisplayed = false;
+        }
+
+        try {
+            KeyGenerator generator = KeyGenerator.getInstance("AES");
+            generator.init(128); // The AES key size in number of bits
+            SecretKey secKey = generator.generateKey();
+
+            Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+            cipher.init(Cipher.PUBLIC_KEY, authorization.getServerPublicKey());
+            byte[] encryptedKey = cipher.doFinal(secKey.getEncoded()/*Secret Key From Step 1*/);
+            //decrypting
+            Cipher aesDecrypting = Cipher.getInstance("AES");
+            aesDecrypting.init(Cipher.DECRYPT_MODE, secKey);
+            //encrypting
+            Cipher aesEncrypting = Cipher.getInstance("AES");
+            aesEncrypting.init(Cipher.ENCRYPT_MODE, secKey);
+
+            socket.setTcpNoDelay(true);
+            try (DataOutputStream out = new DataOutputStream(socket.getOutputStream())) {
+                InputStream in = socket.getInputStream();
+                // Send key for symetric cryptography
+                out.write(encryptedKey);
+
+                if (client.getId() == null) {
+                    sendRequestToRegister(client, aesDecrypting, aesEncrypting, out, in);
+                } else {
+                    introduceById(client, aesDecrypting, aesEncrypting, out, in);
+                }
+                //determine if we will get task
+                String response = readEncryptedString(aesDecrypting, in);
+                if (response.equals("NO_TASK")) {
+                    //we got no task, return to pooling
+                } else {
+                    // we will get task - message it is id
+                    String taskId = response;
+
+                    try (FileOutputStream fos = new FileOutputStream(PATH_TO_TASK_STORAGE + taskId + ".zip")) {
+                        int receivedChunkSize = Integer.parseInt(readEncryptedString(aesDecrypting, in));
+                        while (receivedChunkSize > 0) {
+                            //decrypt and write
+                            fos.write(aesDecrypting.doFinal(in.readNBytes(receivedChunkSize)));
+                            receivedChunkSize = Integer.parseInt(readEncryptedString(aesDecrypting, in));
+                        }
+                    }
+                    recievedTask = new Task(taskId, PATH_TO_TASK_STORAGE + taskId + ".zip");
+                }
+            }
+            socket.close();
+            //if we have task, unzip it and run it
+            if (recievedTask != null) {
+                System.out.println("after close");
+                Persistence.unzip(recievedTask);
+                recievedTask.setPathToSource(Client.PATH_TO_TASK_STORAGE + recievedTask.getId());
+                recievedTask = Persistence.mergeTaskWithConfiguration(recievedTask, new File(recievedTask.getPathToSource() + separator + "taskConfig.json"));
+                int res = recievedTask.run();
+                System.out.println("Task ended with result: " + res);
+            }
+        } catch (Exception e) {
+            if (recievedTask != null) {
+                System.out.println("Something went wrong during task name: " + recievedTask.getName() + ", id: " + recievedTask.getId() + " processing " + e.getMessage());
+            }
+            //add task as failed
+            if (recievedTask != null) {
+                recievedTask.setStatus(TaskStatus.FAILED);
+            }
+        }
     }
 
     private void introduceById(Client client, Cipher aesDecrypting, Cipher aesEncrypting, DataOutputStream out, InputStream in) throws IllegalBlockSizeException, BadPaddingException, IOException {
@@ -232,6 +245,17 @@ public class Client {
             //TODO stop tasks
             client.getTasks().clear();
             client.setAvailableResources(client.getInitialAvailableResources());
+            List<Thread> toRemove = new LinkedList<>();
+            for (Thread thread : runningThreadsList
+            ) {
+                //since list is ordered, stop all threads before current thread - they are running for old id
+                if (thread.equals(Thread.currentThread())) {
+                    break;
+                }
+                thread.interrupt();
+                toRemove.add(thread);
+            }
+            runningThreadsList.removeAll(toRemove);
         }
     }
 
@@ -318,5 +342,19 @@ public class Client {
         return base64Items.stream()
                 .map((encodedItem) -> new String(Base64.getDecoder().decode(encodedItem), StandardCharsets.UTF_8))
                 .toList();
+    }
+
+    //stops pooling and clears all tasks
+    public void stopPooling() {
+        //TODO notice - tasks have to return to pooling!!!
+        if (executor != null) {
+            executor.shutdown();
+        }
+        tasks.clear();
+        for (Thread thread : runningThreadsList
+        ) {
+            thread.interrupt();
+        }
+        runningThreadsList.clear();
     }
 }

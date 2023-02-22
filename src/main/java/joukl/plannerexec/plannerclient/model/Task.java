@@ -3,14 +3,24 @@ package joukl.plannerexec.plannerclient.model;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+
+import static java.io.File.separator;
+import static joukl.plannerexec.plannerclient.model.Client.PATH_TO_TASK_RESULTS_STORAGE;
+import static joukl.plannerexec.plannerclient.model.Client.PATH_TO_TASK_STORAGE;
 
 public class Task {
+    private String executePath;
     private String id;
     private long cost;
     private String name;
-    private String pathToExecutable;
+    private String commandToExecute;
     private List<String> pathToResults;
     private List<String> parameters;
 
@@ -108,12 +118,12 @@ public class Task {
         this.status = status;
     }
 
-    public String getPathToExecutable() {
-        return pathToExecutable;
+    public String getCommandToExecute() {
+        return commandToExecute;
     }
 
-    public void setPathToExecutable(String pathToExecutable) {
-        this.pathToExecutable = pathToExecutable;
+    public void setCommandToExecute(String commandToExecute) {
+        this.commandToExecute = commandToExecute;
     }
 
     public List<String> getPathToResults() {
@@ -148,25 +158,56 @@ public class Task {
         this.pathToSource = pathToSource;
     }
 
-    public Task(String id, String pathToZip){
+    public Task(String id, String pathToZip) {
         this.id = id;
         this.pathToZip = pathToZip;
     }
 
+    public String getExecutePath() {
+        return executePath;
+    }
+
+    public void setExecutePath(String executePath) {
+        this.executePath = executePath;
+    }
+
     //TODO odstranit, použít implicitní?
     public Task(@JsonProperty("cost") long cost, @JsonProperty("name") String name,
-                @JsonProperty("pathToExecutable") String pathToExecutable, @JsonProperty("pathToResults") List<String> pathToResults,
-                @JsonProperty("timeout") long timeoutInMillis, @JsonProperty("priority") int priority, @JsonProperty("queue") String queueName) {
+                @JsonProperty("commandToExecute") String commandToExecute, @JsonProperty("pathToResults") List<String> pathToResults,
+                @JsonProperty("timeout") long timeoutInMillis, @JsonProperty("priority") int priority, @JsonProperty("queue") String queueName, @JsonProperty("executePath") String executePath) {
         this.cost = cost;
         this.name = name;
-        this.pathToExecutable = pathToExecutable;
+        this.commandToExecute = commandToExecute;
         this.pathToResults = pathToResults;
         this.timeoutInMillis = timeoutInMillis;
         this.priority = priority;
         this.queue = queueName;
+        this.executePath = executePath;
 
         this.id = UUID.randomUUID().toString();
 
         this.status = TaskStatus.SCHEDULED;
+    }
+
+    public int run() throws IOException, InterruptedException {
+        //create results location - also with name of command
+        File resDir = new File(PATH_TO_TASK_RESULTS_STORAGE + name + separator + id);
+        resDir.mkdirs();
+
+        ArrayList<String> dtoIn = new ArrayList<>();
+
+        File workingDir = new File(PATH_TO_TASK_STORAGE + id + separator + "payload" + separator + executePath);
+        dtoIn.addAll(List.of(commandToExecute.split(" ")));
+        dtoIn.addAll(parameters);
+
+
+        Process process = new ProcessBuilder(dtoIn)
+                .directory(workingDir)
+                .redirectOutput(new File(resDir.getPath() + separator + "consoleOutput.txt"))
+                .redirectError(new File(resDir.getPath() + separator + "errorOutput.txt"))
+                .start();
+        process.waitFor(timeoutInMillis, TimeUnit.MILLISECONDS);
+        System.out.println(new String(process.getErrorStream().readAllBytes(), Charset.defaultCharset()));
+        return process.exitValue();
     }
 }

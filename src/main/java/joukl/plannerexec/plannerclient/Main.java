@@ -86,6 +86,7 @@ public class Main {
                         String line = sc2.nextLine();
                         stopPooling = line.equals("stop");
                     }
+                    client.stopPooling();
                     break;
                 case "exit":
                     System.exit(0);
