@@ -7,10 +7,16 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
+
+import static java.io.File.separator;
+import static joukl.plannerexec.plannerclient.model.Client.PATH_TO_TASK_RESULTS_STORAGE;
 
 public class Persistence {
 
@@ -136,6 +142,30 @@ public class Persistence {
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static void cleanUp(Task task) throws IOException {
+        //delete res
+        Files.delete(Path.of(Client.PATH_TO_TASK_RESULTS_STORAGE + task.getName() + separator + task.getId() + ".zip"));
+        //SO!
+        //https://stackoverflow.com/questions/35988192/java-nio-most-concise-recursive-directory-delete
+        try (Stream<Path> walk = Files.walk(Path.of(PATH_TO_TASK_RESULTS_STORAGE + task.getName() + separator + task.getId()))) {
+            walk.sorted(Comparator.reverseOrder())
+                    .map(Path::toFile)
+                    .peek(System.out::println)
+                    .forEach(File::delete);
+        }
+
+        //SO!
+        //https://stackoverflow.com/questions/35988192/java-nio-most-concise-recursive-directory-delete
+        try (Stream<Path> walk = Files.walk(Path.of(Client.PATH_TO_TASK_STORAGE + task.getId()))) {
+            walk.sorted(Comparator.reverseOrder())
+                    .map(Path::toFile)
+                    .peek(System.out::println)
+                    .forEach(File::delete);
+        }
+
+        Files.delete(Path.of(Client.PATH_TO_TASK_STORAGE + task.getId() + ".zip"));
     }
 
 }

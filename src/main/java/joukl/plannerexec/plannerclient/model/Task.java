@@ -22,7 +22,7 @@ import static joukl.plannerexec.plannerclient.model.Client.PATH_TO_TASK_STORAGE;
 public class Task {
     private String executePath;
     private String id;
-    private long cost;
+    private int cost;
     private String name;
     private String commandToExecute;
     private List<String> pathToResults;
@@ -50,11 +50,11 @@ public class Task {
         this.id = id;
     }
 
-    public long getCost() {
+    public int getCost() {
         return cost;
     }
 
-    public void setCost(long cost) {
+    public void setCost(int cost) {
         this.cost = cost;
     }
 
@@ -162,9 +162,10 @@ public class Task {
         this.pathToSource = pathToSource;
     }
 
-    public Task(String id, String pathToZip) {
+    public Task(String id,int cost, String pathToZip) {
         this.id = id;
         this.pathToZip = pathToZip;
+        this.cost = cost;
     }
 
     public String getExecutePath() {
@@ -176,7 +177,7 @@ public class Task {
     }
 
     //TODO odstranit, použít implicitní?
-    public Task(@JsonProperty("cost") long cost, @JsonProperty("name") String name,
+    public Task(@JsonProperty("cost") int cost, @JsonProperty("name") String name,
                 @JsonProperty("commandToExecute") String commandToExecute, @JsonProperty("pathToResults") List<String> pathToResults,
                 @JsonProperty("timeout") long timeoutInMillis, @JsonProperty("priority") int priority, @JsonProperty("queue") String queueName, @JsonProperty("executePath") String executePath) {
         this.cost = cost;

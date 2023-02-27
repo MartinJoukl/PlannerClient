@@ -4,11 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="27f5d462-1f8e-4981-a12f-659b7c3b5c89" name="Changes" comment="add payload executing">
+    <list default="true" id="27f5d462-1f8e-4981-a12f-659b7c3b5c89" name="Changes" comment="Move res">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Client.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Client.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Persistence.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Persistence.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Task.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Task.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/TaskStatus.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/TaskStatus.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -106,7 +106,9 @@
       <workItem from="1676815907611" duration="12326000" />
       <workItem from="1677057572371" duration="25396000" />
       <workItem from="1677087105059" duration="110000" />
-      <workItem from="1677093391635" duration="5592000" />
+      <workItem from="1677093391635" duration="5706000" />
+      <workItem from="1677329312233" duration="23424000" />
+      <workItem from="1677518168994" duration="5775000" />
     </task>
     <task id="LOCAL-00001" summary="Initial commit">
       <created>1676218598617</created>
@@ -157,7 +159,14 @@
       <option name="project" value="LOCAL" />
       <updated>1677087188417</updated>
     </task>
-    <option name="localTasksCounter" value="8" />
+    <task id="LOCAL-00008" summary="Move res">
+      <created>1677104905184</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1677104905184</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -194,25 +203,41 @@
     <MESSAGE value="socket fix" />
     <MESSAGE value="Begin unzipping payload" />
     <MESSAGE value="add payload executing" />
-    <option name="LAST_COMMIT_MESSAGE" value="add payload executing" />
+    <MESSAGE value="Move res" />
+    <option name="LAST_COMMIT_MESSAGE" value="Move res" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" type="java-line">
           <url>file://$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Client.java</url>
-          <line>226</line>
-          <option name="timeStamp" value="26" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="java-line">
-          <url>file://$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Client.java</url>
-          <line>358</line>
+          <line>528</line>
           <option name="timeStamp" value="30" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="java-line">
           <url>file://$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Task.java</url>
-          <line>226</line>
+          <line>227</line>
           <option name="timeStamp" value="31" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Client.java</url>
+          <line>371</line>
+          <option name="timeStamp" value="66" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Client.java</url>
+          <line>252</line>
+          <option name="timeStamp" value="74" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Client.java</url>
+          <line>421</line>
+          <option name="timeStamp" value="76" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Client.java</url>
+          <line>245</line>
+          <option name="timeStamp" value="77" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
