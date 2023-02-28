@@ -9,10 +9,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.nio.file.*;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import static java.io.File.separator;
@@ -20,6 +17,7 @@ import static joukl.plannerexec.plannerclient.model.Client.PATH_TO_TASK_RESULTS_
 import static joukl.plannerexec.plannerclient.model.Client.PATH_TO_TASK_STORAGE;
 
 public class Task {
+    private Date startRunningTime;
     private String executePath;
     private String id;
     private int cost;
@@ -162,7 +160,7 @@ public class Task {
         this.pathToSource = pathToSource;
     }
 
-    public Task(String id,int cost, String pathToZip) {
+    public Task(String id, int cost, String pathToZip) {
         this.id = id;
         this.pathToZip = pathToZip;
         this.cost = cost;

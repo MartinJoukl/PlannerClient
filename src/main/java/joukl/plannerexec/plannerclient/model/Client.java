@@ -24,6 +24,8 @@ public class Client {
 
     private volatile boolean sendRequestRoRegister = false;
 
+    private static final int RETRY_COUNT = 10;
+
     //works with one thread scheduling only
     private boolean connectMessageDisplayed = false;
 
@@ -135,9 +137,7 @@ public class Client {
     }
 
     public void startPooling() throws IOException {
-        Client client = Client.getClient();
-
-        ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
+        executor = Executors.newScheduledThreadPool(1);
         //periodically create new pooling threads
         executor.scheduleAtFixedRate(() -> {
             Thread thread = new Thread(() -> {
@@ -156,7 +156,8 @@ public class Client {
         Socket socket = null;
         try {
             socket = new Socket(this.schedulerAddress, 6660);
-            socket.setSoTimeout(200000); //2 s
+            socket.setSoTimeout(20000); //20 s
+            socket.setTcpNoDelay(true);
         } catch (IOException e) {
             if (!connectMessageDisplayed) {
                 System.out.println("Failed to connect... You will be informed when connection will be established...");
@@ -188,7 +189,6 @@ public class Client {
             Cipher aesEncrypting = Cipher.getInstance("AES");
             aesEncrypting.init(Cipher.ENCRYPT_MODE, secKey);
 
-            socket.setTcpNoDelay(true);
             try (DataOutputStream out = new DataOutputStream(socket.getOutputStream())) {
                 InputStream in = socket.getInputStream();
                 if (!validateServer(socket, decrypting, encrypting, out, in)) {
@@ -237,11 +237,15 @@ public class Client {
                 if (res != 0) {
                     //probably failed, but job completed if no error occurred - meaning results are available
                     recievedTask.setStatus(TaskStatus.WARNING);
+                } else {
+                    //finished on client
+                    recievedTask.setStatus(TaskStatus.FINISHED);
                 }
                 System.out.println("Task with id: " + recievedTask.getId() + " and name " + recievedTask.getName() + " ended with result: " + res + "\nCreating zip of file...");
                 //create zip of task results
                 zipResults(recievedTask);
 
+                //transfer task opening socket
                 boolean canCleanUp = transferTaskResults(decrypting, aesDecrypting, encrypting, aesEncrypting, encryptedKey, recievedTask);
 
                 if (canCleanUp) {
@@ -252,7 +256,6 @@ public class Client {
                         System.out.println("Failed to clean up task " + recievedTask.getId());
                     }
                 }
-
             }
         } catch (Exception e) {
             if (recievedTask != null) {
@@ -302,12 +305,28 @@ public class Client {
     private boolean transferTaskResults(Cipher decrypting, Cipher aesDecrypting, Cipher encrypting, Cipher aesEncrypting, byte[] encryptedKey, Task task) throws IOException, IllegalBlockSizeException, BadPaddingException {
 
         //TODO try catch
-        Socket socket = new Socket(this.schedulerAddress, 6660);
-        socket.setSoTimeout(200000); //2 s
-        socket.setTcpNoDelay(true);
+        Socket socket = null;
+        int retryCount = 0;
+        while (socket == null && retryCount < RETRY_COUNT) {
+            try {
+                socket = new Socket(this.schedulerAddress, 6660);
+            } catch (Exception e) {
+                System.out.println("Failed to connect for result transfer, retrying");
+            }
+            retryCount++;
+        }
+
+        if (socket == null) {
+            //failed to deliver task -> so task failed
+            task.setStatus(TaskStatus.FAILED_TRANSFER);
+            availableResources.getAndUpdate((c) -> c + task.getCost());
+            return false;
+        }
+        socket.setSoTimeout(20000); //20 s
 
         boolean canCleanUp = false;
 
+        socket.setTcpNoDelay(true);
         try (DataOutputStream out = new DataOutputStream(socket.getOutputStream())) {
             InputStream in = socket.getInputStream();
 
@@ -323,13 +342,12 @@ public class Client {
             if (createdNewId) {
                 return canCleanUp;
             }
-            //send task id
-            sendEncryptedString(aesEncrypting, out, task.getId().getBytes(StandardCharsets.UTF_8));
+            //send task id and status - warning or finished - exception is handled in different scenario
+            sendEncryptedString(aesEncrypting, out, String.format("%s;%s", task.getId(), task.getStatus().name()).getBytes(StandardCharsets.UTF_8));
             String response = readEncryptedString(aesDecrypting, in);
 
             if (response.equals("NOT_FOUND")) {
                 //remove selected task
-                //TODO also files
                 tasks.remove(task);
                 availableResources.getAndUpdate((c) -> c + task.getCost());
                 canCleanUp = true;
@@ -575,7 +593,6 @@ public class Client {
             }
             //send 0 to signalize we are done
             sendEncryptedMessage(aesEncrypting, out, Long.toString(0).getBytes(StandardCharsets.UTF_8));
-
         }
     }
 }

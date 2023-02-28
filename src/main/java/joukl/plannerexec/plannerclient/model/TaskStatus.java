@@ -8,5 +8,6 @@ public enum TaskStatus {
     FINISHED,
     WARNING,
     DEACTIVATED,
-    FAILED
+    FAILED,
+    FAILED_TRANSFER
 }
