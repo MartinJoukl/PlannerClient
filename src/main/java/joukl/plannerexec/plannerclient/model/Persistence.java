@@ -152,7 +152,6 @@ public class Persistence {
         try (Stream<Path> walk = Files.walk(Path.of(PATH_TO_TASK_RESULTS_STORAGE + task.getName() + separator + task.getId()))) {
             walk.sorted(Comparator.reverseOrder())
                     .map(Path::toFile)
-                    .peek(System.out::println)
                     .forEach(File::delete);
         }
 
@@ -161,7 +160,6 @@ public class Persistence {
         try (Stream<Path> walk = Files.walk(Path.of(Client.PATH_TO_TASK_STORAGE + task.getId()))) {
             walk.sorted(Comparator.reverseOrder())
                     .map(Path::toFile)
-                    .peek(System.out::println)
                     .forEach(File::delete);
         }
 

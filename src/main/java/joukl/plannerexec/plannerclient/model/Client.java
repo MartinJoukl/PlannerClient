@@ -20,7 +20,9 @@ import static joukl.plannerexec.plannerclient.model.Persistence.zipFile;
 public class Client {
     private Authorization authorization = new Authorization();
 
-    ScheduledExecutorService executor;
+    private ScheduledExecutorService executor;
+
+    private volatile boolean sendRequestRoRegister = false;
 
     //works with one thread scheduling only
     private boolean connectMessageDisplayed = false;
@@ -198,7 +200,11 @@ public class Client {
                 out.write(encryptedKey);
 
                 if (this.id == null) {
-                    sendRequestToRegister(aesDecrypting, aesEncrypting, out, in);
+                    boolean registered = sendRequestToRegister(aesDecrypting, aesEncrypting, out, in);
+                    if (!registered) {
+                        socket.close();
+                        return;
+                    }
                 } else {
                     introduceExistingClient(aesDecrypting, aesEncrypting, out, in, false);
                 }
@@ -330,12 +336,12 @@ public class Client {
             } else {
                 //was found
                 //send it
-                System.out.println("sending results..");
 
                 String transferResponse = response;
                 while (!(transferResponse.equals("FINISHED") || transferResponse.equals("FAILED_FINAL") || transferResponse.equals("NOT_FOUND"))) {
                     System.out.println("sending results of task " + task.getId() + " ...");
                     sendZipOfResults(out, aesEncrypting, PATH_TO_TASK_RESULTS_STORAGE + task.getName() + separator + task.getId() + ".zip");
+                    System.out.println("after transfer");
                     transferResponse = readEncryptedString(aesDecrypting, in);
                     System.out.println(transferResponse);
                 }
@@ -362,7 +368,7 @@ public class Client {
         return encryptedKey;
     }
 
-    private static boolean validateServer(Socket socket, Cipher decrypting, Cipher encrypting, DataOutputStream out, InputStream in) throws IOException, IllegalBlockSizeException, BadPaddingException {
+    private synchronized static boolean validateServer(Socket socket, Cipher decrypting, Cipher encrypting, DataOutputStream out, InputStream in) throws IOException, IllegalBlockSizeException, BadPaddingException {
         //first challenge, response - write random UUID encrypted by server public key, he will send it back + another challenge for us
         String uuId = UUID.randomUUID().toString();
         out.write(encrypting.doFinal(uuId.getBytes(StandardCharsets.UTF_8)));
@@ -378,7 +384,7 @@ public class Client {
         return true;
     }
 
-    private Task receiveTask(Cipher aesDecrypting, InputStream in, String taskId, int cost) throws IOException, IllegalBlockSizeException, BadPaddingException {
+    private synchronized Task receiveTask(Cipher aesDecrypting, InputStream in, String taskId, int cost) throws IOException, IllegalBlockSizeException, BadPaddingException {
 
         try (FileOutputStream fos = new FileOutputStream(PATH_TO_TASK_STORAGE + taskId + ".zip")) {
             int receivedChunkSize = Integer.parseInt(readEncryptedString(aesDecrypting, in));
@@ -391,7 +397,7 @@ public class Client {
         return new Task(taskId, cost, PATH_TO_TASK_STORAGE + taskId + ".zip");
     }
 
-    private boolean introduceExistingClient(Cipher aesDecrypting, Cipher aesEncrypting, DataOutputStream out, InputStream in, boolean sendingTask) throws IllegalBlockSizeException, BadPaddingException, IOException {
+    private synchronized boolean introduceExistingClient(Cipher aesDecrypting, Cipher aesEncrypting, DataOutputStream out, InputStream in, boolean sendingTask) throws IllegalBlockSizeException, BadPaddingException, IOException {
         byte[] messageToSend;
         if (!sendingTask) {
             messageToSend = (String.format("%s;%s;%s", this.id, this.availableResources, this.USER_AGENT)).getBytes(StandardCharsets.UTF_8);
@@ -404,6 +410,7 @@ public class Client {
         String response = readEncryptedString(aesDecrypting, in);
         //if not ACK, server was reset - clear tasks and set new id
         if (!response.equals("ACK")) {
+            System.out.println("re-register");
             //send list of queues to finish new registration
             this.sendEncryptedList(aesEncrypting, out, queue);
 
@@ -432,7 +439,12 @@ public class Client {
         }
     }
 
-    private void sendRequestToRegister(Cipher aesDecrypting, Cipher aesEncrypting, DataOutputStream out, InputStream in) throws IllegalBlockSizeException, BadPaddingException, IOException {
+    private synchronized boolean sendRequestToRegister(Cipher aesDecrypting, Cipher aesEncrypting, DataOutputStream out, InputStream in) throws IllegalBlockSizeException, BadPaddingException, IOException {
+        //solves problem with concurrency
+        if (sendRequestRoRegister && id == null) {
+            return false;
+        }
+        sendRequestRoRegister = true;
         byte[] messageToSend = (String.format("NEW;%s;%s", this.USER_AGENT, this.availableResources)).getBytes(StandardCharsets.UTF_8);
 
         sendEncryptedString(aesEncrypting, out, messageToSend);
@@ -441,6 +453,7 @@ public class Client {
         String id = readEncryptedString(aesDecrypting, in);
 
         this.id = id;
+        return true;
     }
 
     private String readEncryptedString(Cipher aesDecrypting, InputStream in) throws IOException, IllegalBlockSizeException, BadPaddingException {
