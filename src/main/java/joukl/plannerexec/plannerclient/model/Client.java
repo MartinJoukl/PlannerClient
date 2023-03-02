@@ -22,8 +22,6 @@ public class Client {
 
     private ScheduledExecutorService executor;
 
-    private volatile boolean sendRequestRoRegister = false;
-
     private static final int RETRY_COUNT = 10;
 
     //works with one thread scheduling only
@@ -45,7 +43,7 @@ public class Client {
     private int initialAvailableResources = 11;
     private volatile AtomicInteger availableResources = new AtomicInteger(initialAvailableResources);
 
-    private String id;
+    private volatile String id;
 
     private final char STOP_SYMBOL = 31;
     private final char ARR_STOP_SYMBOL = 30;
@@ -171,23 +169,34 @@ public class Client {
             connectMessageDisplayed = false;
         }
 
+        SecretKey secKey = null;
+        Cipher decrypting = null;
+        Cipher aesDecrypting = null;
+        Cipher encrypting = null;
+        Cipher aesEncrypting = null;
+        byte[] encryptedKey = null;
         try {
-            SecretKey secKey = generateAesKey();
-            byte[] encryptedKey = encryptAesKey(secKey);
+            secKey = generateAesKey();
+            encryptedKey = encryptAesKey(secKey);
 
             //decrypting
-            Cipher decrypting = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+            decrypting = Cipher.getInstance("RSA/ECB/PKCS1Padding");
             decrypting.init(Cipher.DECRYPT_MODE, authorization.getClientPrivateKey());
             //symmetric
-            Cipher aesDecrypting = Cipher.getInstance("AES");
+            aesDecrypting = Cipher.getInstance("AES");
             aesDecrypting.init(Cipher.DECRYPT_MODE, secKey);
 
             //encrypting
-            Cipher encrypting = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+            encrypting = Cipher.getInstance("RSA/ECB/PKCS1Padding");
             encrypting.init(Cipher.ENCRYPT_MODE, authorization.getServerPublicKey());
             //symmetric
-            Cipher aesEncrypting = Cipher.getInstance("AES");
+            aesEncrypting = Cipher.getInstance("AES");
             aesEncrypting.init(Cipher.ENCRYPT_MODE, secKey);
+        } catch (Exception ignored) {
+            //can't happen...
+        }
+
+        try {
 
             try (DataOutputStream out = new DataOutputStream(socket.getOutputStream())) {
                 InputStream in = socket.getInputStream();
@@ -206,25 +215,15 @@ public class Client {
                         return;
                     }
                 } else {
-                    introduceExistingClient(aesDecrypting, aesEncrypting, out, in, false);
+                    introduceExistingClient(aesDecrypting, aesEncrypting, out, in, IntroductionMode.GREETING);
                 }
                 //determine if we will get task
                 response = readEncryptedString(aesDecrypting, in);
                 if (response.equals("NO_TASK")) {
                     //we got no task, return to pooling
                 } else {
-                    // we will get task - message it is id
-                    String[] responses = response.split(";");
-                    String taskId = responses[0];
-                    int cost = Integer.parseInt(responses[1]);
-                    if (checkIfCostIsHigherAndSetResources(cost)) {
-                        System.out.println("cost too high!!!");
-                        sendEncryptedString(aesEncrypting, out, "COST_TOO_HIGH;".getBytes(StandardCharsets.UTF_8));
-                        socket.close();
-                        return;
-                    }
-                    sendEncryptedString(aesEncrypting, out, availableResources.toString().getBytes(StandardCharsets.UTF_8));
-                    recievedTask = receiveTask(aesDecrypting, in, taskId, cost);
+                    recievedTask = receiveTaskWithBasicInfo(socket, aesDecrypting, aesEncrypting, out, in, response);
+                    if (recievedTask == null) return;
                 }
             }
             socket.close();
@@ -234,6 +233,7 @@ public class Client {
                 recievedTask.setPathToSource(Client.PATH_TO_TASK_STORAGE + recievedTask.getId());
                 recievedTask = Persistence.mergeTaskWithConfiguration(recievedTask, new File(recievedTask.getPathToSource() + separator + "taskConfig.json"));
                 int res = recievedTask.run();
+
                 if (res != 0) {
                     //probably failed, but job completed if no error occurred - meaning results are available
                     recievedTask.setStatus(TaskStatus.WARNING);
@@ -250,7 +250,7 @@ public class Client {
 
                 if (canCleanUp) {
                     try {
-                        System.out.println("cleaning up");
+                        System.out.println("cleaning up task " + recievedTask.getId());
                         Persistence.cleanUp(recievedTask);
                     } catch (Exception e) {
                         System.out.println("Failed to clean up task " + recievedTask.getId());
@@ -267,8 +267,30 @@ public class Client {
                 finalRecievedTask.setStatus(TaskStatus.FAILED);
                 availableResources.getAndUpdate((c) -> c + finalRecievedTask.getCost());
                 //TODO inform about failure
+                try {
+                    informAboutFailure(decrypting, aesDecrypting, encrypting, aesEncrypting, encryptedKey, recievedTask);
+                    System.out.println("Informed about task failure - id: " + recievedTask.getId());
+                } catch (IOException | IllegalBlockSizeException | BadPaddingException ex) {
+                    System.out.println("Failed to inform about failure of task " + recievedTask.getId());
+                }
             }
         }
+    }
+
+    private Task receiveTaskWithBasicInfo(Socket socket, Cipher aesDecrypting, Cipher aesEncrypting, DataOutputStream out, InputStream in, String response) throws IllegalBlockSizeException, BadPaddingException, IOException {
+        // we will get task - message it is id
+        String[] responses = response.split(";");
+        String taskId = responses[0];
+        int cost = Integer.parseInt(responses[1]);
+        if (checkIfCostIsHigherAndSetResources(cost)) {
+            System.out.println("cost too high!!!");
+            sendEncryptedString(aesEncrypting, out, "COST_TOO_HIGH".getBytes(StandardCharsets.UTF_8));
+            socket.close();
+            return null;
+        }
+        sendEncryptedString(aesEncrypting, out, availableResources.toString().getBytes(StandardCharsets.UTF_8));
+        Task recievedTask = receiveTaskFiles(aesDecrypting, in, taskId, cost);
+        return recievedTask;
     }
 
     private synchronized boolean checkIfCostIsHigherAndSetResources(int cost) {
@@ -289,6 +311,51 @@ public class Client {
         fos.close();
     }
 
+    private boolean informAboutFailure(Cipher decrypting, Cipher aesDecrypting, Cipher encrypting, Cipher aesEncrypting, byte[] encryptedKey, Task task) throws IOException, IllegalBlockSizeException, BadPaddingException {
+        Socket socket = null;
+        int retryCount = 0;
+        while (socket == null && retryCount < RETRY_COUNT) {
+            try {
+                socket = new Socket(this.schedulerAddress, 6660);
+            } catch (Exception e) {
+                System.out.println("Failed to connect for result transfer, retrying");
+            }
+            retryCount++;
+        }
+
+        if (socket == null) {
+            //failed to deliver task -> so task failed
+            task.setStatus(TaskStatus.FAILED_TRANSFER);
+            availableResources.getAndUpdate((c) -> c + task.getCost());
+            return false;
+        }
+
+        boolean canCleanUp = false;
+
+        socket.setSoTimeout(20000); //20 s
+
+        socket.setTcpNoDelay(true);
+        try (DataOutputStream out = new DataOutputStream(socket.getOutputStream())) {
+            InputStream in = socket.getInputStream();
+
+            if (!validateServer(socket, decrypting, encrypting, out, in)) {
+                return false;
+            }
+
+            // Send key for symmetric cryptography
+            out.write(encryptedKey);
+            //send message about task failure
+            boolean createdNewId = introduceExistingClient(aesDecrypting, aesEncrypting, out, in, IntroductionMode.EXCEPTION_REPORTING);
+            if (createdNewId) {
+                return canCleanUp;
+            }
+            //send id of failed task
+            sendEncryptedString(aesEncrypting, out, task.getId().getBytes(StandardCharsets.UTF_8));
+        }
+        socket.close();
+        return canCleanUp;
+    }
+
 
     /**
      * @param decrypting
@@ -304,7 +371,6 @@ public class Client {
      */
     private boolean transferTaskResults(Cipher decrypting, Cipher aesDecrypting, Cipher encrypting, Cipher aesEncrypting, byte[] encryptedKey, Task task) throws IOException, IllegalBlockSizeException, BadPaddingException {
 
-        //TODO try catch
         Socket socket = null;
         int retryCount = 0;
         while (socket == null && retryCount < RETRY_COUNT) {
@@ -337,12 +403,12 @@ public class Client {
             // Send key for symmetric cryptography
             out.write(encryptedKey);
 
-            boolean createdNewId = introduceExistingClient(aesDecrypting, aesEncrypting, out, in, true);
+            boolean createdNewId = introduceExistingClient(aesDecrypting, aesEncrypting, out, in, IntroductionMode.RESULT_TRANSFER);
             //we got new id so task is no longer relevant
             if (createdNewId) {
                 return canCleanUp;
             }
-            //send task id and status - warning or finished - exception is handled in different scenario
+            //send task id and status - exception is handled in different scenario
             sendEncryptedString(aesEncrypting, out, String.format("%s;%s", task.getId(), task.getStatus().name()).getBytes(StandardCharsets.UTF_8));
             String response = readEncryptedString(aesDecrypting, in);
 
@@ -402,7 +468,7 @@ public class Client {
         return true;
     }
 
-    private synchronized Task receiveTask(Cipher aesDecrypting, InputStream in, String taskId, int cost) throws IOException, IllegalBlockSizeException, BadPaddingException {
+    private synchronized Task receiveTaskFiles(Cipher aesDecrypting, InputStream in, String taskId, int cost) throws IOException, IllegalBlockSizeException, BadPaddingException {
 
         try (FileOutputStream fos = new FileOutputStream(PATH_TO_TASK_STORAGE + taskId + ".zip")) {
             int receivedChunkSize = Integer.parseInt(readEncryptedString(aesDecrypting, in));
@@ -415,10 +481,12 @@ public class Client {
         return new Task(taskId, cost, PATH_TO_TASK_STORAGE + taskId + ".zip");
     }
 
-    private synchronized boolean introduceExistingClient(Cipher aesDecrypting, Cipher aesEncrypting, DataOutputStream out, InputStream in, boolean sendingTask) throws IllegalBlockSizeException, BadPaddingException, IOException {
+    private synchronized boolean introduceExistingClient(Cipher aesDecrypting, Cipher aesEncrypting, DataOutputStream out, InputStream in, IntroductionMode mode) throws IllegalBlockSizeException, BadPaddingException, IOException {
         byte[] messageToSend;
-        if (!sendingTask) {
+        if (mode == IntroductionMode.GREETING) {
             messageToSend = (String.format("%s;%s;%s", this.id, this.availableResources, this.USER_AGENT)).getBytes(StandardCharsets.UTF_8);
+        } else if (mode == IntroductionMode.EXCEPTION_REPORTING) {
+            messageToSend = (String.format("%s;%s;%s;EXCEPTION", this.id, this.availableResources, this.USER_AGENT)).getBytes(StandardCharsets.UTF_8);
         } else {
             messageToSend = (String.format("%s;%s;%s;RESULT", this.id, this.availableResources, this.USER_AGENT)).getBytes(StandardCharsets.UTF_8);
         }
@@ -459,11 +527,11 @@ public class Client {
 
     private synchronized boolean sendRequestToRegister(Cipher aesDecrypting, Cipher aesEncrypting, DataOutputStream out, InputStream in) throws IllegalBlockSizeException, BadPaddingException, IOException {
         //solves problem with concurrency
-        if (sendRequestRoRegister && id == null) {
+        if (this.id != null) {
             return false;
         }
-        sendRequestRoRegister = true;
-        byte[] messageToSend = (String.format("NEW;%s;%s", this.USER_AGENT, this.availableResources)).getBytes(StandardCharsets.UTF_8);
+        System.out.println("registering...");
+        byte[] messageToSend = (String.format("%s;%s;NEW;", this.USER_AGENT, this.availableResources)).getBytes(StandardCharsets.UTF_8);
 
         sendEncryptedString(aesEncrypting, out, messageToSend);
         sendEncryptedList(aesEncrypting, out, queue);
@@ -550,7 +618,7 @@ public class Client {
 
     //stops pooling and clears all tasks
     public void stopPooling() {
-        //TODO notice - tasks have to return to pooling!!!
+        //TODO notice - tasks have to return to pooling!!! - so inform about disconnect?
         if (executor != null) {
             executor.shutdown();
         }
