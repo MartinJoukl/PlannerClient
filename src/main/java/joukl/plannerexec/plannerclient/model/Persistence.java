@@ -64,6 +64,9 @@ public class Persistence {
     //https://www.baeldung.com/java-compress-and-uncompress
     //Unzips task to task folder
     public static void unzip(Task task) throws IOException {
+        //first try to cleanUp res dir
+        Persistence.cleanUpReceived(task.getId(), false);
+
         String fileZip = task.getPathToZip();
         File destDir = new File(Client.PATH_TO_TASK_STORAGE);
 
@@ -96,6 +99,22 @@ public class Persistence {
 
         zis.closeEntry();
         zis.close();
+    }
+
+    public static Configuration readApplicationConfiguration() {
+
+        File configFile = new File("config.json");
+        if (configFile.exists()) {
+            ObjectMapper mapper = new ObjectMapper();
+            try {
+                return mapper
+                        .readerFor(Configuration.class)
+                        .readValue(configFile);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return null;
     }
 
     //https://www.baeldung.com/java-compress-and-uncompress
@@ -145,25 +164,41 @@ public class Persistence {
     }
 
     public static void cleanUp(Task task) throws IOException {
+        cleanUpRes(task);
+        cleanUpReceived(task.getId(), true);
+    }
+
+    public static void cleanUpReceived(String id, boolean withZip) throws IOException {
+
+        //SO!
+        //https://stackoverflow.com/questions/35988192/java-nio-most-concise-recursive-directory-delete
+        if (Files.exists(Path.of(Client.PATH_TO_TASK_STORAGE + id))) {
+            try (Stream<Path> walk = Files.walk(Path.of(Client.PATH_TO_TASK_STORAGE + id))) {
+                walk.sorted(Comparator.reverseOrder())
+                        .map(Path::toFile)
+                        .forEach(File::delete);
+            }
+        }
+
+        if (withZip && Files.exists(Path.of(Client.PATH_TO_TASK_STORAGE + id + ".zip"))) {
+            Files.delete(Path.of(Client.PATH_TO_TASK_STORAGE + id + ".zip"));
+        }
+    }
+
+    public static void cleanUpRes(Task task) throws IOException {
         //delete res
-        Files.delete(Path.of(Client.PATH_TO_TASK_RESULTS_STORAGE + task.getName() + separator + task.getId() + ".zip"));
+        if (Files.exists(Path.of(Client.PATH_TO_TASK_RESULTS_STORAGE + task.getName() + separator + task.getId() + ".zip"))) {
+            Files.delete(Path.of(Client.PATH_TO_TASK_RESULTS_STORAGE + task.getName() + separator + task.getId() + ".zip"));
+        }
         //SO!
         //https://stackoverflow.com/questions/35988192/java-nio-most-concise-recursive-directory-delete
-        try (Stream<Path> walk = Files.walk(Path.of(PATH_TO_TASK_RESULTS_STORAGE + task.getName() + separator + task.getId()))) {
-            walk.sorted(Comparator.reverseOrder())
-                    .map(Path::toFile)
-                    .forEach(File::delete);
+        if (Files.exists(Path.of(PATH_TO_TASK_RESULTS_STORAGE + task.getName() + separator + task.getId()))) {
+            try (Stream<Path> walk = Files.walk(Path.of(PATH_TO_TASK_RESULTS_STORAGE + task.getName() + separator + task.getId()))) {
+                walk.sorted(Comparator.reverseOrder())
+                        .map(Path::toFile)
+                        .forEach(File::delete);
+            }
         }
-
-        //SO!
-        //https://stackoverflow.com/questions/35988192/java-nio-most-concise-recursive-directory-delete
-        try (Stream<Path> walk = Files.walk(Path.of(Client.PATH_TO_TASK_STORAGE + task.getId()))) {
-            walk.sorted(Comparator.reverseOrder())
-                    .map(Path::toFile)
-                    .forEach(File::delete);
-        }
-
-        Files.delete(Path.of(Client.PATH_TO_TASK_STORAGE + task.getId() + ".zip"));
     }
 
 }

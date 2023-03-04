@@ -120,6 +120,16 @@ public class Task {
         this.status = status;
     }
 
+    @Override
+    public String toString() {
+        return
+                "Started: " + startRunningTime +
+                        ", id: '" + id + '\'' +
+                        ", cost: " + cost +
+                        ", name: '" + name + '\'' +
+                        ", status: " + status;
+    }
+
     public String getCommandToExecute() {
         return commandToExecute;
     }
@@ -189,7 +199,7 @@ public class Task {
 
         this.id = UUID.randomUUID().toString();
 
-        this.status = TaskStatus.SCHEDULED;
+        this.status = TaskStatus.UPLOADED;
     }
 
     public int run() throws IOException, InterruptedException, URISyntaxException {
@@ -203,13 +213,14 @@ public class Task {
         dtoIn.addAll(List.of(commandToExecute.split(" ")));
         dtoIn.addAll(parameters);
 
-
         Process process = new ProcessBuilder(dtoIn)
                 .directory(workingDir)
                 .redirectOutput(new File(resDir.getPath() + separator + "consoleOutput.txt"))
                 .redirectError(new File(resDir.getPath() + separator + "errorOutput.txt"))
                 .start();
         process.waitFor(timeoutInMillis, TimeUnit.MILLISECONDS);
+        //call because if we timed out, we want to see throw exception
+        process.exitValue();
 
         List<File> files = new LinkedList<>();
         //try to get results - move them from task

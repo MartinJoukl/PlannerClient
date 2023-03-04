@@ -32,26 +32,32 @@ public class Client {
 
     List<Thread> runningThreadsList = Collections.synchronizedList(new LinkedList<>());
     private List<Task> tasks = Collections.synchronizedList(new ArrayList<>());
-    //TODO nasetování queue
-    private final List<String> queue = new ArrayList<>();
+    private final List<String> queues = new ArrayList<>();
     //new LinkedList<>();
     private String schedulerAddress = "127.0.0.1";
-    //TODO z configu?
-    private String USER_AGENT = "WINDOWS";
+    private String userAgent = "WINDOWS";
 
-    //TODO z configu, pro test 11
-    private int initialAvailableResources = 11;
+    private int initialAvailableResources;
     private volatile AtomicInteger availableResources = new AtomicInteger(initialAvailableResources);
 
     private volatile String id;
 
     private final char STOP_SYMBOL = 31;
     private final char ARR_STOP_SYMBOL = 30;
+    private int port;
 
 
     private static final Client CLIENT = new Client();
 
     private Client() {
+        Configuration config = Persistence.readApplicationConfiguration();
+        if (config != null) {
+            port = config.getPort();
+            userAgent = config.getAgent();
+            queues.addAll(config.getSubscribedQueues());
+            initialAvailableResources = config.getAvailableResources();
+            availableResources = new AtomicInteger(initialAvailableResources);
+        }
     }
 
     public String getId() {
@@ -60,6 +66,14 @@ public class Client {
 
     public void setId(String id) {
         this.id = id;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    public void setPort(int port) {
+        this.port = port;
     }
 
     public boolean loadClientKeys() {
@@ -153,8 +167,8 @@ public class Client {
         Task recievedTask = null;
         Socket socket = null;
         try {
-            socket = new Socket(this.schedulerAddress, 6660);
-            socket.setSoTimeout(20000); //20 s
+            socket = new Socket(this.schedulerAddress, port);
+            socket.setSoTimeout(2000); //2 s
             socket.setTcpNoDelay(true);
         } catch (IOException e) {
             if (!connectMessageDisplayed) {
@@ -224,6 +238,8 @@ public class Client {
                 } else {
                     recievedTask = receiveTaskWithBasicInfo(socket, aesDecrypting, aesEncrypting, out, in, response);
                     if (recievedTask == null) return;
+                    tasks.add(recievedTask);
+                    recievedTask.setStatus(TaskStatus.UPLOADED);
                 }
             }
             socket.close();
@@ -232,6 +248,9 @@ public class Client {
                 Persistence.unzip(recievedTask);
                 recievedTask.setPathToSource(Client.PATH_TO_TASK_STORAGE + recievedTask.getId());
                 recievedTask = Persistence.mergeTaskWithConfiguration(recievedTask, new File(recievedTask.getPathToSource() + separator + "taskConfig.json"));
+                //clean up results location
+                Persistence.cleanUpRes(recievedTask);
+                recievedTask.setStatus(TaskStatus.RUNNING);
                 int res = recievedTask.run();
 
                 if (res != 0) {
@@ -239,18 +258,18 @@ public class Client {
                     recievedTask.setStatus(TaskStatus.WARNING);
                 } else {
                     //finished on client
-                    recievedTask.setStatus(TaskStatus.FINISHED);
+                    recievedTask.setStatus(TaskStatus.ZIPPING);
                 }
-                System.out.println("Task with id: " + recievedTask.getId() + " and name " + recievedTask.getName() + " ended with result: " + res + "\nCreating zip of file...");
+                //System.out.println("Task with id: " + recievedTask.getId() + " and name " + recievedTask.getName() + " ended with result: " + res + "\nCreating zip of file...");
                 //create zip of task results
                 zipResults(recievedTask);
 
                 //transfer task opening socket
+                recievedTask.setStatus(TaskStatus.IN_TRANSFER);
                 boolean canCleanUp = transferTaskResults(decrypting, aesDecrypting, encrypting, aesEncrypting, encryptedKey, recievedTask);
-
                 if (canCleanUp) {
                     try {
-                        System.out.println("cleaning up task " + recievedTask.getId());
+                        //System.out.println("cleaning up task " + recievedTask.getId());
                         Persistence.cleanUp(recievedTask);
                     } catch (Exception e) {
                         System.out.println("Failed to clean up task " + recievedTask.getId());
@@ -258,9 +277,6 @@ public class Client {
                 }
             }
         } catch (Exception e) {
-            if (recievedTask != null) {
-                System.out.println("Something went wrong during task name: " + recievedTask.getName() + ", id: " + recievedTask.getId() + " processing " + e.getMessage());
-            }
             //add task as failed
             if (recievedTask != null) {
                 Task finalRecievedTask = recievedTask;
@@ -283,7 +299,6 @@ public class Client {
         String taskId = responses[0];
         int cost = Integer.parseInt(responses[1]);
         if (checkIfCostIsHigherAndSetResources(cost)) {
-            System.out.println("cost too high!!!");
             sendEncryptedString(aesEncrypting, out, "COST_TOO_HIGH".getBytes(StandardCharsets.UTF_8));
             socket.close();
             return null;
@@ -316,14 +331,15 @@ public class Client {
         int retryCount = 0;
         while (socket == null && retryCount < RETRY_COUNT) {
             try {
-                socket = new Socket(this.schedulerAddress, 6660);
+                socket = new Socket(this.schedulerAddress, port);
             } catch (Exception e) {
-                System.out.println("Failed to connect for result transfer, retrying");
+                // System.out.println("Failed to connect for result transfer, retrying");
             }
             retryCount++;
         }
 
         if (socket == null) {
+            System.out.println("Transferring task results failed");
             //failed to deliver task -> so task failed
             task.setStatus(TaskStatus.FAILED_TRANSFER);
             availableResources.getAndUpdate((c) -> c + task.getCost());
@@ -332,7 +348,7 @@ public class Client {
 
         boolean canCleanUp = false;
 
-        socket.setSoTimeout(20000); //20 s
+        socket.setSoTimeout(2000); //2 s
 
         socket.setTcpNoDelay(true);
         try (DataOutputStream out = new DataOutputStream(socket.getOutputStream())) {
@@ -375,7 +391,7 @@ public class Client {
         int retryCount = 0;
         while (socket == null && retryCount < RETRY_COUNT) {
             try {
-                socket = new Socket(this.schedulerAddress, 6660);
+                socket = new Socket(this.schedulerAddress, port);
             } catch (Exception e) {
                 System.out.println("Failed to connect for result transfer, retrying");
             }
@@ -388,7 +404,7 @@ public class Client {
             availableResources.getAndUpdate((c) -> c + task.getCost());
             return false;
         }
-        socket.setSoTimeout(20000); //20 s
+        socket.setSoTimeout(2000); //2 s
 
         boolean canCleanUp = false;
 
@@ -423,13 +439,15 @@ public class Client {
 
                 String transferResponse = response;
                 while (!(transferResponse.equals("FINISHED") || transferResponse.equals("FAILED_FINAL") || transferResponse.equals("NOT_FOUND"))) {
-                    System.out.println("sending results of task " + task.getId() + " ...");
                     sendZipOfResults(out, aesEncrypting, PATH_TO_TASK_RESULTS_STORAGE + task.getName() + separator + task.getId() + ".zip");
-                    System.out.println("after transfer");
                     transferResponse = readEncryptedString(aesDecrypting, in);
-                    System.out.println(transferResponse);
                 }
                 canCleanUp = !transferResponse.equals("FAILED_FINAL");
+                if (transferResponse.equals("FINISHED")) {
+                    task.setStatus(TaskStatus.FINISHED);
+                } else {
+                    task.setStatus(TaskStatus.FAILED);
+                }
 
                 availableResources.getAndUpdate((c) -> c + task.getCost());
             }
@@ -484,11 +502,11 @@ public class Client {
     private synchronized boolean introduceExistingClient(Cipher aesDecrypting, Cipher aesEncrypting, DataOutputStream out, InputStream in, IntroductionMode mode) throws IllegalBlockSizeException, BadPaddingException, IOException {
         byte[] messageToSend;
         if (mode == IntroductionMode.GREETING) {
-            messageToSend = (String.format("%s;%s;%s", this.id, this.availableResources, this.USER_AGENT)).getBytes(StandardCharsets.UTF_8);
+            messageToSend = (String.format("%s;%s;%s", this.id, this.availableResources, this.userAgent)).getBytes(StandardCharsets.UTF_8);
         } else if (mode == IntroductionMode.EXCEPTION_REPORTING) {
-            messageToSend = (String.format("%s;%s;%s;EXCEPTION", this.id, this.availableResources, this.USER_AGENT)).getBytes(StandardCharsets.UTF_8);
+            messageToSend = (String.format("%s;%s;%s;EXCEPTION", this.id, this.availableResources, this.userAgent)).getBytes(StandardCharsets.UTF_8);
         } else {
-            messageToSend = (String.format("%s;%s;%s;RESULT", this.id, this.availableResources, this.USER_AGENT)).getBytes(StandardCharsets.UTF_8);
+            messageToSend = (String.format("%s;%s;%s;RESULT", this.id, this.availableResources, this.userAgent)).getBytes(StandardCharsets.UTF_8);
         }
 
         sendEncryptedString(aesEncrypting, out, messageToSend);
@@ -496,12 +514,11 @@ public class Client {
         String response = readEncryptedString(aesDecrypting, in);
         //if not ACK, server was reset - clear tasks and set new id
         if (!response.equals("ACK")) {
-            System.out.println("re-register");
+            System.out.println("re-registering");
             //send list of queues to finish new registration
-            this.sendEncryptedList(aesEncrypting, out, queue);
+            this.sendEncryptedList(aesEncrypting, out, queues);
 
             this.id = response;
-            //TODO stop tasks
             this.tasks.clear();
             this.availableResources.set(initialAvailableResources);
             List<Thread> toRemove = new LinkedList<>();
@@ -531,10 +548,10 @@ public class Client {
             return false;
         }
         System.out.println("registering...");
-        byte[] messageToSend = (String.format("%s;%s;NEW;", this.USER_AGENT, this.availableResources)).getBytes(StandardCharsets.UTF_8);
+        byte[] messageToSend = (String.format("%s;%s;NEW;", this.userAgent, this.availableResources)).getBytes(StandardCharsets.UTF_8);
 
         sendEncryptedString(aesEncrypting, out, messageToSend);
-        sendEncryptedList(aesEncrypting, out, queue);
+        sendEncryptedList(aesEncrypting, out, queues);
         //read id
         String id = readEncryptedString(aesDecrypting, in);
 
@@ -611,9 +628,7 @@ public class Client {
         //split items using deli
         List<String> base64Items = List.of(arrMessage.split(String.valueOf(STOP_SYMBOL)));
 
-        return base64Items.stream()
-                .map((encodedItem) -> new String(Base64.getDecoder().decode(encodedItem), StandardCharsets.UTF_8))
-                .toList();
+        return base64Items.stream().map((encodedItem) -> new String(Base64.getDecoder().decode(encodedItem), StandardCharsets.UTF_8)).toList();
     }
 
     //stops pooling and clears all tasks
@@ -623,8 +638,7 @@ public class Client {
             executor.shutdown();
         }
         tasks.clear();
-        for (Thread thread : runningThreadsList
-        ) {
+        for (Thread thread : runningThreadsList) {
             thread.interrupt();
         }
         runningThreadsList.clear();

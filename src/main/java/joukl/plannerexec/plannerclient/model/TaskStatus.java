@@ -2,12 +2,12 @@ package joukl.plannerexec.plannerclient.model;
 
 public enum TaskStatus {
 
-    UPLOADING,
-    SCHEDULED,
+    UPLOADED,
     RUNNING,
     FINISHED,
     WARNING,
-    DEACTIVATED,
     FAILED,
+    ZIPPING,
+    IN_TRANSFER,
     FAILED_TRANSFER
 }
