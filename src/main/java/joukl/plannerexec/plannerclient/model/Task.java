@@ -30,9 +30,9 @@ public class Task {
     private String pathToZip;
     @JsonIgnore
     private String pathToSource;
-    private int from;
+    private Integer from;
 
-    private int to;
+    private Integer to;
     private boolean isRepeating;
     @JsonProperty("timeout")
     private long timeoutInMillis;
@@ -64,19 +64,19 @@ public class Task {
         this.parameters = parameters;
     }
 
-    public int getFrom() {
+    public Integer getFrom() {
         return from;
     }
 
-    public void setFrom(int from) {
+    public void setFrom(Integer from) {
         this.from = from;
     }
 
-    public int getTo() {
+    public Integer getTo() {
         return to;
     }
 
-    public void setTo(int to) {
+    public void setTo(Integer to) {
         this.to = to;
     }
 
@@ -120,15 +120,7 @@ public class Task {
         this.status = status;
     }
 
-    @Override
-    public String toString() {
-        return
-                "Started: " + startRunningTime +
-                        ", id: '" + id + '\'' +
-                        ", cost: " + cost +
-                        ", name: '" + name + '\'' +
-                        ", status: " + status;
-    }
+    private List<String> parametrizedValues;
 
     public String getCommandToExecute() {
         return commandToExecute;
@@ -176,6 +168,14 @@ public class Task {
         this.cost = cost;
     }
 
+    public List<String> getParametrizedValues() {
+        return parametrizedValues;
+    }
+
+    public void setParametrizedValues(List<String> parametrizedValues) {
+        this.parametrizedValues = parametrizedValues;
+    }
+
     public String getExecutePath() {
         return executePath;
     }
@@ -187,7 +187,10 @@ public class Task {
     //TODO odstranit, použít implicitní?
     public Task(@JsonProperty("cost") int cost, @JsonProperty("name") String name,
                 @JsonProperty("commandToExecute") String commandToExecute, @JsonProperty("pathToResults") List<String> pathToResults,
-                @JsonProperty("timeout") long timeoutInMillis, @JsonProperty("priority") int priority, @JsonProperty("queue") String queueName, @JsonProperty("executePath") String executePath) {
+                @JsonProperty("timeout") long timeoutInMillis, @JsonProperty("priority") int priority, @JsonProperty("queue") String queueName,
+                @JsonProperty("executePath") String executePath,
+                @JsonProperty("parametrizedFrom") Integer parametrizedFrom, @JsonProperty("parametrizedTo") Integer parametrizedTo,
+                @JsonProperty("parametrizedValues") List<String> parametrizedValues) {
         this.cost = cost;
         this.name = name;
         this.commandToExecute = commandToExecute;
@@ -196,6 +199,9 @@ public class Task {
         this.priority = priority;
         this.queue = queueName;
         this.executePath = executePath;
+        this.from = parametrizedFrom;
+        this.to = parametrizedTo;
+        this.parametrizedValues = parametrizedValues;
 
         this.id = UUID.randomUUID().toString();
 
@@ -206,21 +212,12 @@ public class Task {
         //create results location - also with name of command
         File resDir = new File(PATH_TO_TASK_RESULTS_STORAGE + name + separator + id);
         resDir.mkdirs();
-
-        ArrayList<String> dtoIn = new ArrayList<>();
+        List<String> currentParameters = new LinkedList<>(parameters);
+        int parametrizedPosition = currentParameters.indexOf("%%");
 
         File workingDir = new File(PATH_TO_TASK_STORAGE + id + separator + "payload" + separator + executePath);
-        dtoIn.addAll(List.of(commandToExecute.split(" ")));
-        dtoIn.addAll(parameters);
 
-        Process process = new ProcessBuilder(dtoIn)
-                .directory(workingDir)
-                .redirectOutput(new File(resDir.getPath() + separator + "consoleOutput.txt"))
-                .redirectError(new File(resDir.getPath() + separator + "errorOutput.txt"))
-                .start();
-        process.waitFor(timeoutInMillis, TimeUnit.MILLISECONDS);
-        //call because if we timed out, we want to see throw exception
-        process.exitValue();
+        Process process = runProcessAccordingToParametrization(resDir, currentParameters, parametrizedPosition, workingDir);
 
         List<File> files = new LinkedList<>();
         //try to get results - move them from task
@@ -238,6 +235,85 @@ public class Task {
             }
         }
 
+        //npe can't happen
         return process.exitValue();
+    }
+
+    private Process runProcessAccordingToParametrization(File resDir, List<String> currentParameters, int parametrizedPosition, File workingDir) throws IOException, InterruptedException {
+        Process process = null;
+        if (from != null) {
+            if (from > to) {
+                for (int i = from; i >= to; i--) {
+                    ArrayList<String> dtoIn = new ArrayList<>();
+                    dtoIn.addAll(List.of(commandToExecute.split(" ")));
+                    if (parametrizedPosition > -1) {
+                        currentParameters.set(parametrizedPosition, String.valueOf(i));
+                    }
+                    dtoIn.addAll(currentParameters);
+
+                    process = innerRun(resDir, dtoIn, workingDir);
+                }
+            } else {
+                for (int i = from; i <= to; i++) {
+                    ArrayList<String> dtoIn = new ArrayList<>();
+                    dtoIn.addAll(List.of(commandToExecute.split(" ")));
+                    if (parametrizedPosition > -1) {
+                        currentParameters.set(parametrizedPosition, String.valueOf(i));
+                    }
+                    dtoIn.addAll(currentParameters);
+
+                    process = innerRun(resDir, dtoIn, workingDir);
+                }
+            }
+        } else if (parametrizedValues != null) {
+            for (String parametrizedValue : parametrizedValues) {
+                ArrayList<String> dtoIn = new ArrayList<>();
+                dtoIn.addAll(List.of(commandToExecute.split(" ")));
+                if (parametrizedPosition > -1) {
+                    currentParameters.set(parametrizedPosition, parametrizedValue);
+                }
+                dtoIn.addAll(currentParameters);
+                process = innerRun(resDir, dtoIn, workingDir);
+            }
+        } else {
+            ArrayList<String> dtoIn = new ArrayList<>();
+            dtoIn.addAll(List.of(commandToExecute.split(" ")));
+            dtoIn.addAll(currentParameters);
+            process = innerRun(resDir, dtoIn, workingDir);
+        }
+        return process;
+    }
+
+    private Process innerRun(File resDir, ArrayList<String> dtoIn, File workingDir) throws IOException, InterruptedException {
+        Process process = new ProcessBuilder(dtoIn)
+                .directory(workingDir)
+                .redirectOutput(ProcessBuilder.Redirect.appendTo(new File(resDir.getPath() + separator + "consoleOutput.txt")))
+                .redirectError(ProcessBuilder.Redirect.appendTo(new File(resDir.getPath() + separator + "errorOutput.txt")))
+                .start();
+        process.waitFor(timeoutInMillis, TimeUnit.MILLISECONDS);
+        //call because if we timed out, we want to see throw exception
+        process.exitValue();
+        return process;
+    }
+
+    public static boolean validateCorrectParametrization(Task task) {
+
+        if (task.from == null && task.to == null && (task.parametrizedValues == null || task.parametrizedValues.isEmpty())) {
+            // validation is correct if task doesn't contain parametrized value
+            return !task.getParameters().contains("%%");
+        }
+        //we need to check that parameters are present at max only once
+        if (task.getParameters().stream().filter((p) -> p.equals("%%")).count() > 1) {
+            return false;
+        }
+        //NOTE - we don't check for existence of %% because we will run process X times based on params - we will just not fill in any params
+        //else we need to check that correct parameters are filled
+        // we have task from, we have to have task to and parametrized values can't be filled
+        if (task.from != null) {
+            return task.to != null && (task.parametrizedValues == null || task.parametrizedValues.isEmpty());
+        } else {
+            //else we have to have the parametrized values filled, but task has to be null
+            return task.to == null && task.parametrizedValues != null && !task.parametrizedValues.isEmpty();
+        }
     }
 }

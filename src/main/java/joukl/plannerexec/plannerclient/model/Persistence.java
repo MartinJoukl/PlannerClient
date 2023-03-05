@@ -153,6 +153,9 @@ public class Persistence {
             task.setParameters(fromConfig.getParameters());
             task.setPriority(fromConfig.getPriority());
             task.setExecutePath(fromConfig.getExecutePath());
+            task.setFrom(fromConfig.getFrom());
+            task.setTo(fromConfig.getTo());
+            task.setParametrizedValues(fromConfig.getParametrizedValues());
 
             task.setQueue(fromConfig.getQueue());
 

@@ -248,6 +248,10 @@ public class Client {
                 Persistence.unzip(recievedTask);
                 recievedTask.setPathToSource(Client.PATH_TO_TASK_STORAGE + recievedTask.getId());
                 recievedTask = Persistence.mergeTaskWithConfiguration(recievedTask, new File(recievedTask.getPathToSource() + separator + "taskConfig.json"));
+                boolean isValid = Task.validateCorrectParametrization(recievedTask);
+                if (!isValid) {
+                    throw new Exception("Task parametrization values are not valid");
+                }
                 //clean up results location
                 Persistence.cleanUpRes(recievedTask);
                 recievedTask.setStatus(TaskStatus.RUNNING);

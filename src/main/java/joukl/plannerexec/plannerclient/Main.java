@@ -53,7 +53,7 @@ public class Main {
                             "rk/reloadKey - reloads keys from disc  (from path " + PATH_TO_KEYS + ")\n" +
                             "shst/setHost - set host ip or domain and port\n" +
                             "cn/connect - start pooling for tasks\n" +
-                            "status - displays client info\n" +
+                            "cf/config - displays client configuration\n" +
                             "exit - exist program\n" +
                             "----------------------------------------"
                     );
@@ -82,6 +82,20 @@ public class Main {
                     System.out.println("Enter port number");
                     int portNumber = sc.nextInt();
                     client.setPort(portNumber);
+                    break;
+                case "cf":
+                case "config":
+                    System.out.println("-----------------------------CURRENT CONFIGURATION------------------------------");
+                    String clientId = client.getId() == null ? "None" : client.getId();
+                    System.out.println("Given ID: " + clientId);
+                    System.out.println("Scheduling server address: " + client.getSchedulerAddress());
+                    System.out.println("Connection port: " + client.getPort());
+                    System.out.println("Available resources: " + client.getAvailableResources());
+                    String privateKeyLoadedText = client.getAuthorization().getClientPrivateKey() == null ? "Private key is NOT set" : "Private key is set";
+                    String publicServerKeyText = client.getAuthorization().getServerPublicKey() == null ? "Server public key is NOT set" : "Server public key is set";
+
+                    System.out.println(privateKeyLoadedText);
+                    System.out.println(publicServerKeyText);
                     break;
                 case "cn":
                 case "connect":
