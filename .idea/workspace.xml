@@ -4,12 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="27f5d462-1f8e-4981-a12f-659b7c3b5c89" name="Changes" comment="Impl loading from config, status, bugfixes">
+    <list default="true" id="27f5d462-1f8e-4981-a12f-659b7c3b5c89" name="Changes" comment="Add parametrized execution">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/Main.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Client.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Client.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Persistence.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Persistence.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Task.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/joukl/plannerexec/plannerclient/model/Task.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/config.json" beforeDir="false" afterPath="$PROJECT_DIR$/config.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -59,7 +56,7 @@
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "WebServerToolWindowFactoryState": "false",
-    "last_opened_file_path": "C:/Users/joukl/IdeaProjects/PlannerServer",
+    "last_opened_file_path": "C:/Users/joukl/IdeaProjects/PlannerClient",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -135,7 +132,8 @@
       <workItem from="1677798295861" duration="144000" />
       <workItem from="1677930905438" duration="25346000" />
       <workItem from="1677972540742" duration="160000" />
-      <workItem from="1678010565563" duration="9769000" />
+      <workItem from="1678010565563" duration="9926000" />
+      <workItem from="1679156390968" duration="4245000" />
     </task>
     <task id="LOCAL-00001" summary="Initial commit">
       <created>1676218598617</created>
@@ -228,7 +226,14 @@
       <option name="project" value="LOCAL" />
       <updated>1677972515781</updated>
     </task>
-    <option name="localTasksCounter" value="14" />
+    <task id="LOCAL-00014" summary="Add parametrized execution">
+      <created>1678024400704</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1678024400704</updated>
+    </task>
+    <option name="localTasksCounter" value="15" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -271,7 +276,8 @@
     <MESSAGE value="Add retry + send task status" />
     <MESSAGE value="Refactoring + bugfix" />
     <MESSAGE value="Impl loading from config, status, bugfixes" />
-    <option name="LAST_COMMIT_MESSAGE" value="Impl loading from config, status, bugfixes" />
+    <MESSAGE value="Add parametrized execution" />
+    <option name="LAST_COMMIT_MESSAGE" value="Add parametrized execution" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
