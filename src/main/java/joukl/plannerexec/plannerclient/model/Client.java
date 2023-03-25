@@ -149,7 +149,7 @@ public class Client {
     }
 
     public void startPooling() throws IOException {
-        executor = Executors.newScheduledThreadPool(1);
+        executor = Executors.newScheduledThreadPool(4);
         //periodically create new pooling threads
         executor.scheduleAtFixedRate(() -> {
             Thread thread = new Thread(() -> {
@@ -234,7 +234,7 @@ public class Client {
                 //determine if we will get task
                 response = readEncryptedString(aesDecrypting, in);
                 if (response.equals("NO_TASK")) {
-                    //we got no task, return to pooling
+                    //we got no task, we will later return to pooling
                 } else {
                     recievedTask = receiveTaskWithBasicInfo(socket, aesDecrypting, aesEncrypting, out, in, response);
                     if (recievedTask == null) return;
@@ -245,6 +245,8 @@ public class Client {
             socket.close();
             //if we have task, unzip it and run it
             if (recievedTask != null) {
+                //clean up recieved directory
+                Persistence.cleanUpReceived(recievedTask.getId(), false);
                 Persistence.unzip(recievedTask);
                 recievedTask.setPathToSource(Client.PATH_TO_TASK_STORAGE + recievedTask.getId());
                 recievedTask = Persistence.mergeTaskWithConfiguration(recievedTask, new File(recievedTask.getPathToSource() + separator + "taskConfig.json"));
@@ -343,9 +345,8 @@ public class Client {
         }
 
         if (socket == null) {
-            System.out.println("Transferring task results failed");
+            System.out.println("Transferring error message failed");
             //failed to deliver task -> so task failed
-            task.setStatus(TaskStatus.FAILED_TRANSFER);
             availableResources.getAndUpdate((c) -> c + task.getCost());
             return false;
         }

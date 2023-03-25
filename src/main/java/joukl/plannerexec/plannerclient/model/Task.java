@@ -291,7 +291,7 @@ public class Task {
                 .redirectError(ProcessBuilder.Redirect.appendTo(new File(resDir.getPath() + separator + "errorOutput.txt")))
                 .start();
         process.waitFor(timeoutInMillis, TimeUnit.MILLISECONDS);
-        //call because if we timed out, we want to see throw exception
+        //call because if we timed out, we want to see thrown exception
         process.exitValue();
         return process;
     }

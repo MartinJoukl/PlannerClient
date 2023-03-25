@@ -52,7 +52,7 @@ public class Main {
                             "rsp/reloadServerPublic - reloads server public key from disc (from path " + PATH_TO_KEYS + "/" + KeyType.SERVER_PUBLIC.getKeyName() + ".key)\n" +
                             "rk/reloadKey - reloads keys from disc  (from path " + PATH_TO_KEYS + ")\n" +
                             "shst/setHost - set host ip or domain and port\n" +
-                            "cn/connect - start pooling for tasks\n" +
+                            "cn/connect - start polling for tasks\n" +
                             "cf/config - displays client configuration\n" +
                             "exit - exist program\n" +
                             "----------------------------------------"
@@ -102,7 +102,7 @@ public class Main {
                     client.startPooling();
                     boolean stopPooling = false;
                     Scanner sc2 = new Scanner(System.in);
-                    System.out.println("Enter \"stop\" to stop pooling or \"ps\" to display running tasks");
+                    System.out.println("Enter \"stop\" to stop polling or \"ps\" to display running tasks");
                     while (!stopPooling) {
                         stopPooling = innerCommands(sc2);
                     }
@@ -131,7 +131,7 @@ public class Main {
         } else if (line.equals("stop")) {
             return true;
         } else {
-            System.out.print("Enter \"stop\" to stop pooling or \"ps\" to display running tasks");
+            System.out.println("Enter \"stop\" to stop pooling or \"ps\" to display running tasks");
         }
 
         return false;
